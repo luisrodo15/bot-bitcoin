@@ -1,0 +1,40 @@
+# Baja datos de "ballenas" de Binance Futuros: posiciones de los traders más grandes, interés abierto y tasa de financiación.
+name: ballenas
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/ballenas.yml"]
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bajar datos
+        run: |
+          mkdir -p out tmp
+          S=BTCUSDT
+          # Tasa de financiación (cada 8 horas), por mes
+          MESES=$(python3 -c "import datetime as d
+          t=d.date.today().replace(day=1);x=d.date(2019,9,1);m=[]
+          while x<t: m.append(x.strftime('%Y-%m')); x=(x+d.timedelta(days=32)).replace(day=1)
+          print(' '.join(m))")
+          for m in $MESES; do curl -sfL -o tmp/z.zip "https://data.binance.vision/data/futures/um/monthly/fundingRate/$S/$S-fundingRate-$m.zip" && unzip -p tmp/z.zip | grep -E '^[0-9]' >> out/financiacion.csv || true; done
+          echo "financiacion $(wc -l < out/financiacion.csv)"
+          # Métricas diarias (cada 5 min): interés abierto y razón largo/corto de los traders grandes. Nos quedamos con la última de cada día.
+          DIAS=$(python3 -c "import datetime as d
+          x=d.date(2021,12,1);t=d.date.today();o=[]
+          while x<t: o.append(x.isoformat()); x+=d.timedelta(days=1)
+          print(' '.join(o))")
+          echo "fecha,interes_abierto,interes_abierto_usd,ratio_top_cuentas,ratio_top_posiciones,ratio_todos,ratio_tomadores" > out/metricas.csv
+          bajar() { curl -sfL -o tmp/$1.zip "https://data.binance.vision/data/futures/um/daily/metrics/$S/$S-metrics-$1.zip" && unzip -p tmp/$1.zip | grep -E '^[0-9]' | tail -1 | cut -d, -f1,3-8 > tmp/$1.csv; rm -f tmp/$1.zip; }
+          export -f bajar; export S
+          echo $DIAS | tr ' ' '\n' | xargs -P 16 -I{} bash -c 'bajar {}'
+          cat tmp/20*.csv | sort >> out/metricas.csv
+          echo "metricas $(wc -l < out/metricas.csv)"; head -3 out/metricas.csv; tail -2 out/metricas.csv
+      - name: Guardar en la rama ballenas
+        run: |
+          cd out
+          git init -q -b ballenas && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Datos de ballenas $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ballenas
