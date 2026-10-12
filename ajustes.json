@@ -1,5 +1,5 @@
 {
-  "moneda": "SOL",
+  "moneda": "BNB",
   "estrategia": "sentimiento",
   "codicia": 55,
   "miedo": 25,
@@ -8,5 +8,5 @@
   "saldoInicial": 12,
   "perdidaMax": 3,
   "todoBTC": false,
-  "comision": 0.1
+  "comision": 0.075
 }
