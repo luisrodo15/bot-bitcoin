@@ -1,10 +1,11 @@
 {
-  "moneda": "BTC",
+  "moneda": "ETH",
   "estrategia": "sentimiento",
   "codicia": 55,
   "miedo": 30,
   "real": false,
   "monto": 12,
   "saldoInicial": 12,
-  "perdidaMax": 3
+  "perdidaMax": 3,
+  "todoBTC": false
 }

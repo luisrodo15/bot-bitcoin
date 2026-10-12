@@ -23,7 +23,7 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
@@ -37,6 +37,9 @@ if (REAL && !st.real) { st = Bot.estadoInicial(cfg); st.real = true; st.usdt = 0
 if (!REAL && ((st.moneda || "BTC") !== cfg.moneda || (st.estrategia || "lotes") !== (cfg.estrategia || "lotes"))) st = Bot.estadoInicial(cfg);
 st.estrategia = cfg.estrategia || "lotes";
 const SENT = st.estrategia === "sentimiento";
+// todoBTC: el bot maneja TODOS los BTC (o la moneda elegida) que haya libres en Spot, no solo los que él compró.
+// Los vende a USDT cuando la señal es de salida y recompra con ese mismo dinero cuando vuelve la señal.
+const TODO = REAL && SENT && !!cfg.todoBTC;
 st.compras = st.compras || []; st.ajustes = st.ajustes || [];
 // Para quitar una pausa desde GitHub: subir el número "reanudar" en ajustes.json.
 if (AJ.reanudar !== undefined && AJ.reanudar !== st.reanudado) { st.reanudado = AJ.reanudar; st.pausado = null; }
@@ -104,6 +107,7 @@ async function revisarReal() {
   const cta = await cli.cuenta(), libre = a => +((cta.balances || []).find(b => b.asset === a) || { free: 0 }).free;
   st.usdtLibre = libre("USDT"); st.baseLibre = libre(par.base);
   st.error = null; st.aviso = null;
+  if (TODO) adoptar(precio, ahora);
   // Decide con la misma lógica de la simulación (sobre una copia) y luego lo hace de verdad.
   const copia = JSON.parse(JSON.stringify(st)); copia.usdt = 1e9; copia.trades = [];
   const decisiones = await decidir(copia, cfg, precio, ahora, mon);
@@ -116,11 +120,24 @@ async function revisarReal() {
       console.error(new Date().toISOString(), e.message); break;
     }
   }
-  if (st.ganado <= -Math.abs(cfg.perdidaMax) && !st.pausado) st.pausado = `Pausado: la pérdida total llegó a ${st.ganado.toFixed(2)} USDT (tu tope es ${cfg.perdidaMax}).`;
+  if (!TODO && st.ganado <= -Math.abs(cfg.perdidaMax) && !st.pausado) st.pausado = `Pausado: la pérdida total llegó a ${st.ganado.toFixed(2)} USDT (tu tope es ${cfg.perdidaMax}).`;
+}
+// Toma como "compra abierta" todo lo que haya en Spot de la moneda. Si depositas o retiras, se ajusta solo.
+function adoptar(precio, ahora) {
+  const valor = st.baseLibre * precio; let c = st.compras[0];
+  st.polvo = 0; st.polvoCosto = 0;
+  if (valor >= par.minNotional) {
+    if (!c) { st.compras = [{ precio, btc: st.baseLibre, costo: valor, t: ahora, adoptado: true }]; anotarAjuste(`Tomé ${st.baseLibre} ${par.base} de tu Spot para manejarlos (valen ${valor.toFixed(2)} USDT).`); }
+    else if (Math.abs(c.btc - st.baseLibre) > 1e-8) { c.costo = st.baseLibre > c.btc ? c.costo + (st.baseLibre - c.btc) * precio : c.costo * st.baseLibre / c.btc; c.btc = st.baseLibre; }
+  } else {
+    st.compras = [];
+    if (valor > 1) st.aviso = `Tus ${st.baseLibre} ${par.base} en Spot valen ${valor.toFixed(2)} USDT; Binance pide al menos ${par.minNotional} USDT para venderlos.`;
+  }
 }
 async function comprarReal(h, precio, ahora) {
   // Sentimiento: usa todo el monto, o lo que haya libre si es menos.
-  const monto = SENT ? Math.min(+cfg.monto, Math.floor(st.usdtLibre * 0.995 * 100) / 100) : +cfg.monto;
+  const tope = TODO && st.usdtBot > 0 ? st.usdtBot : +cfg.monto; // con todoBTC recompra con lo que sacó al vender
+  const monto = SENT ? Math.min(tope, Math.floor(st.usdtLibre * 0.998 * 100) / 100) : +cfg.monto;
   if (monto < par.minNotional * 1.15) { st.aviso = `El monto por compra (${monto} USDT) es muy chico: Binance pide más de ${par.minNotional} USDT y debe alcanzar para vender aunque baje.`; return; }
   if (st.usdtLibre < monto || monto <= 0) { st.aviso = `Quería comprar pero solo hay ${st.usdtLibre.toFixed(2)} USDT libres en Spot (necesita ${monto}).`; return; }
   const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
@@ -132,7 +149,7 @@ async function comprarReal(h, precio, ahora) {
   const pagado = quote + fee - sumaComision(o.fills, par.base) * prom; // USDT + comisión cobrada en BNB
   st.polvo = +((st.polvo || 0) + recibido - lote).toFixed(10); st.polvoCosto = +((st.polvoCosto || 0) + pagado * (1 - lote / recibido)).toFixed(10);
   const c = { precio: prom, btc: lote, costo: +(pagado * lote / recibido).toFixed(8), t: ahora, orden: o.orderId };
-  st.compras.push(c); st.usdtLibre -= quote;
+  st.compras.push(c); st.usdtLibre -= quote; if (TODO) st.usdtBot = Math.max(0, (st.usdtBot || 0) - quote);
   const t = { t: ahora, tipo: "COMPRA", real: true, precio: prom, btc: lote, usdt: quote, comision: +fee.toFixed(8), motivo: h.motivo, orden: o.orderId };
   st.trades.push(t); anotar(t); console.log(new Date().toISOString(), "COMPRA REAL", par.simbolo, lote, "a", prom);
 }
@@ -146,6 +163,7 @@ async function venderReal(h, precio, ahora) {
   const fee = await comisionUSDT(o, par.base, prom), neto = quote - fee, ganancia = +(neto - c.costo - costoExtra).toFixed(8);
   st.polvo = +Math.max(0, (st.polvo || 0) - extra).toFixed(10); st.polvoCosto = +Math.max(0, (st.polvoCosto || 0) - costoExtra).toFixed(10);
   st.compras.splice(st.compras.indexOf(c), 1); st.ganado = +(st.ganado + ganancia).toFixed(8);
+  if (TODO) st.usdtBot = +((st.usdtBot || 0) + neto).toFixed(8);
   if (!st.compras.length) st.ref = prom;
   const t = { t: ahora, tipo: h.tipo, real: true, precio: prom, btc: qty, usdt: +neto.toFixed(8), comision: +fee.toFixed(8), ganancia, motivo: h.motivo, orden: o.orderId };
   st.trades.push(t); anotar(t); console.log(new Date().toISOString(), t.tipo, "REAL", par.simbolo, qty, "a", prom, "ganancia", ganancia);
@@ -223,7 +241,7 @@ h1{font-size:20px;margin:0 0 4px}h1 span{color:#f2b632}.sub{color:#8c9abb;font-s
 table{width:100%;border-collapse:collapse;font-size:13px;background:#0d1730;border:1px solid #1d2c52;border-radius:14px}th,td{padding:7px 8px;border-bottom:1px solid #1d2c52;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{color:#8c9abb;font-weight:500;font-size:11px}
 .up{color:#2fd08a}.down{color:#ff5d6c}.gold{color:#f2b632}</style></head><body><div class="w">
 <h1>Bot <span>Cripto</span></h1><p class="sub">Funcionando 24/7 en el servidor · revisado ${st.ultimaRevision ? cuando(st.ultimaRevision) : "…"} · se actualiza cada minuto</p>
-${REAL ? `<div class="e"><b>DINERO REAL.</b> Compra y vende ${st.moneda} de verdad en tu Binance Spot, solo con USDT y solo vende lo que él compró.</div>`
+${REAL ? `<div class="e"><b>DINERO REAL.</b> ${TODO ? `Maneja todos tus ${st.moneda} de Spot: los pasa a USDT con miedo o tendencia de bajada y los recompra con codicia y tendencia de subida.` : `Compra y vende ${st.moneda} de verdad en tu Binance Spot, solo con USDT y solo vende lo que él compró.`}</div>`
   : `<div class="b"><b>MODO SIMULACIÓN.</b> Dinero ficticio con precios reales de Binance.${cfg.real ? " Para pasar a dinero real falta poner la llave en el servidor." : ""}</div>`}
 ${st.error ? `<div class="e">${st.error}</div>` : ""}${st.aviso ? `<div class="b">${st.aviso}</div>` : ""}
 <div class="g"><div class="k"><div class="l">Precio ${st.moneda || cfg.moneda}</div><div class="v">${p ? usd(p) : "…"}</div><div class="n">USDT</div></div>
