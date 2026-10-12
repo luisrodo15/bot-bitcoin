@@ -1,0 +1,41 @@
+# Baja precios históricos públicos de Binance (data.binance.vision) para analizar estrategias.
+# Guarda un CSV comprimido por moneda (minuto, precio de cierre) en la rama "datos".
+name: datos
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/datos.yml"]
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bajar velas de 1 minuto
+        run: |
+          set -e
+          mkdir -p out tmp
+          MESES=$(python3 -c "import datetime as d;t=d.date.today().replace(day=1);m=[];x=t
+          for i in range(12):
+            x=(x-d.timedelta(days=1)).replace(day=1);m.append(x.strftime('%Y-%m'))
+          print(' '.join(reversed(m)))")
+          DIAS=$(python3 -c "import datetime as d;t=d.date.today();print(' '.join((t.replace(day=1)+d.timedelta(days=i)).isoformat() for i in range((t-t.replace(day=1)).days)))")
+          echo "meses: $MESES"; echo "dias: $DIAS"
+          for M in BTC ETH SOL BNB XRP DOGE ADA; do
+            S=${M}USDT; : > tmp/$S.csv
+            for m in $MESES; do
+              curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/monthly/klines/$S/1m/$S-1m-$m.zip" && unzip -p tmp/z.zip >> tmp/$S.csv || echo "falta $S $m"
+            done
+            for d in $DIAS; do
+              curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/daily/klines/$S/1m/$S-1m-$d.zip" && unzip -p tmp/z.zip >> tmp/$S.csv || echo "falta $S $d"
+            done
+            # minuto (ms), apertura, máximo, mínimo, cierre
+            awk -F, '$1 ~ /^[0-9]+$/ { t=$1; if (t > 1e14) t=int(t/1000); print t","$2","$3","$4","$5 }' tmp/$S.csv | sort -t, -k1,1n -u | gzip -9 > out/$S.csv.gz
+            echo "$S $(zcat out/$S.csv.gz | wc -l) filas"
+          done
+      - name: Guardar en la rama datos
+        run: |
+          cd out
+          git init -q -b datos && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Precios $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" datos
