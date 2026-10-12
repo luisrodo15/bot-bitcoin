@@ -149,7 +149,7 @@ function adoptar(precio, ahora) {
   st.polvo = 0; st.polvoCosto = 0;
   if (valor >= par.minNotional) {
     if (!c) { st.compras = [{ precio, btc: st.baseLibre, costo: valor, t: ahora, adoptado: true }]; anotarAjuste(`Tomé ${st.baseLibre} ${par.base} de tu Spot para manejarlos (valen ${valor.toFixed(2)} USDT).`); }
-    else if (Math.abs(c.btc - st.baseLibre) > 1e-8) { c.costo = st.baseLibre > c.btc ? c.costo + (st.baseLibre - c.btc) * precio : c.costo * st.baseLibre / c.btc; c.btc = st.baseLibre; }
+    else if (Math.abs(c.btc - st.baseLibre) > 1e-8) { c.costo = st.baseLibre > c.btc ? c.costo + (st.baseLibre - c.btc) * precio : c.costo * st.baseLibre / c.btc; if (st.baseLibre > c.btc) c.precio = c.costo / st.baseLibre; c.btc = st.baseLibre; } // si depositas más, la meta de +3% se calcula sobre el precio promedio
   } else {
     st.compras = [];
     if (valor > 1) st.aviso = `Tus ${st.baseLibre} ${par.base} en Spot valen ${valor.toFixed(2)} USDT; Binance pide al menos ${par.minNotional} USDT para venderlos.`;
