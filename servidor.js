@@ -300,9 +300,11 @@ function pagina() {
   const espera = st.pausado ? "En pausa: " + st.pausado
     : (st.compras.length ? `Vender ≥ ${usd(Math.min(...n.ventas), p >= 1000 ? 0 : 2)} (${st.compras.length} de ${cfg.lotes} compras abiertas)` : "")
       + (n.compra ? `${st.compras.length ? " · " : ""}Comprar ≤ ${usd(n.compra, p >= 1000 ? 0 : 2)}` : "") || "Arrancando";
+  const MOV = +cfg.movimiento || 0, MOVB = +(cfg.movimientoBaja ?? cfg.movimiento) || 0;
   const sg = st.senales, cod = cfg.codicia ?? Sen.DEF.codicia, mie = cfg.miedo ?? Sen.DEF.miedo;
   const esperaSent = st.pausado ? "En pausa: " + st.pausado : !sg ? "Leyendo señales…"
-    : st.compras.length ? `Tiene ${st.moneda} comprado. Vende si el índice baja a ${mie} o la EMA20 cae abajo de la EMA50.`
+    : st.compras.length ? `Tiene ${st.moneda} comprado.${MOV ? ` Vende con ganancia a ${usd(Math.max(...st.compras.map(c => c.precio)) * (1 + MOV / 100), 2)} (+${MOV}%).` : ""} Vende todo si el índice baja a ${mie} o la EMA20 cae abajo de la EMA50.`
+    : st.movVenta ? `En USDT tras vender con ganancia. Recompra a ${usd(st.movVenta * (1 - MOVB / 100), 2)} (-${MOVB}%) o a ${usd(st.movVenta * (1 + MOV / 100), 2)} si sigue subiendo.`
     : `En USDT. Compra cuando el índice llegue a ${cod} y la EMA20 esté arriba de la EMA50.`;
   const filas = st.trades.slice(-50).reverse().map(t => `<tr><td>${cuando(t.t)}</td><td class="${t.tipo === "COMPRA" ? "up" : t.tipo === "VENTA" ? "down" : "gold"}">${t.tipo}</td><td>${usd(t.precio)}</td><td class="${t.ganancia == null ? "" : t.ganancia >= 0 ? "up" : "down"}">${t.ganancia == null ? "" : signo(t.ganancia)}</td></tr>`).join("");
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Bot Cripto</title><style>
