@@ -9,5 +9,6 @@
   "perdidaMax": 3,
   "todoBTC": true,
   "reinvertir": true,
-  "comision": 0.075
+  "comision": 0.075,
+  "movimiento": 3
 }

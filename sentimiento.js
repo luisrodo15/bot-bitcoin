@@ -25,13 +25,32 @@
     }
     const indice = sen.indice, sube = sen.e20 > sen.e50;
     const codicia = cfg.codicia ?? DEF.codicia, miedo = cfg.miedo ?? DEF.miedo, com = cfg.comision / 100;
-    if (st.compras.length && (indice <= miedo || !sube)) {
+    // Modo movimiento (cfg.movimiento = % de subida): mientras la tendencia es buena, vende todo al subir ese % desde la compra
+    // y recompra al bajar cfg.movimientoBaja % (igual si no se pone) desde esa venta, o si sigue subiendo ese mismo %.
+    const X = (+cfg.movimiento || 0) / 100, Y = (+(cfg.movimientoBaja ?? cfg.movimiento) || 0) / 100, malo = indice <= miedo || !sube;
+    if (!X || malo || st.compras.length) st.movVenta = null;
+    if (X && !malo && st.compras.length && precio >= Math.max(...st.compras.map(c => c.precio)) * (1 + X)) {
+      for (const c of st.compras.slice()) {
+        const bruto = c.btc * precio, fee = bruto * com, neto = bruto - fee, ganancia = neto - c.costo;
+        st.usdt += neto; st.btc = Math.max(0, st.btc - c.btc); st.compras.splice(st.compras.indexOf(c), 1); st.ganado += ganancia;
+        hechas.push({ t: ahora, tipo: "VENTA", compra: c.t, precio, btc: c.btc, usdt: neto, comision: fee, ganancia, motivo: `subió ${cfg.movimiento}% desde la compra (modo movimiento)` });
+      }
+      st.movVenta = precio;
+    } else if (X && !malo && !st.compras.length && st.movVenta && (precio <= st.movVenta * (1 - Y) || precio >= st.movVenta * (1 + X))) {
+      const monto = cfg.reinvertir ? Math.floor(st.usdt * 100) / 100 : Math.min(cfg.monto, st.usdt);
+      if (monto >= Math.min(cfg.monto, 5)) {
+        const fee = monto * com, btc = (monto - fee) / precio, baja = precio < st.movVenta;
+        st.usdt -= monto; st.btc += btc; st.compras.push({ precio, btc, costo: monto, t: ahora });
+        hechas.push({ t: ahora, tipo: "COMPRA", precio, btc, usdt: monto, comision: fee, motivo: baja ? `bajó ${Math.round(Y * 100)}% desde la venta (modo movimiento)` : `siguió subiendo ${cfg.movimiento}% desde la venta (modo movimiento)` });
+        st.movVenta = null;
+      }
+    } else if (st.compras.length && (indice <= miedo || !sube)) {
       for (const c of st.compras.slice()) {
         const bruto = c.btc * precio, fee = bruto * com, neto = bruto - fee, ganancia = neto - c.costo;
         st.usdt += neto; st.btc = Math.max(0, st.btc - c.btc); st.compras.splice(st.compras.indexOf(c), 1); st.ganado += ganancia;
         hechas.push({ t: ahora, tipo: "VENTA", compra: c.t, precio, btc: c.btc, usdt: neto, comision: fee, ganancia, motivo: indice <= miedo ? `el índice bajó a ${indice} (miedo ≤ ${miedo})` : `la EMA20 cayó abajo de la EMA50 (tendencia de bajada)` });
       }
-    } else if (!st.compras.length && indice >= codicia && sube) {
+    } else if (!st.compras.length && !st.movVenta && indice >= codicia && sube) {
       const monto = cfg.reinvertir ? Math.floor(st.usdt * 100) / 100 : Math.min(cfg.monto, st.usdt); // reinvertir: usa todo, ganancias incluidas
       if (monto >= Math.min(cfg.monto, 5)) {
         const fee = monto * com, btc = (monto - fee) / precio;

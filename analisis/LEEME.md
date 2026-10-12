@@ -29,3 +29,6 @@ cuando sube X% (3/5/8/12) y recomprar al bajar Y% (3/5/8) o si sigue subiendo. D
 - 2023-hoy y último año: mezclado; +8/-8 con todo: 2023-hoy +531% (actual +451%) pero último año +11% (actual +30%) y 2018-22 +4375%.
 - Con 8 USDT no se puede mover solo una parte (Binance pide 5 USDT por orden), así que solo serviría la variante de todo.
 Conclusión: no lo pongo por mi cuenta; más operaciones = más comisiones y salir antes de las subidas grandes.
+- 2026-10-12 19:25: el usuario pidió más operaciones ("pocas al año no me sirve"). Activado "movimiento": 3 (vende todo al +3% desde la compra
+  mientras la tendencia es buena; recompra al -3% desde la venta o si sigue subiendo 3%). En swing.js (+3/-3 todo): BNB último año +36% (actual +30%),
+  2023-hoy +410% (+451%), 2018-22 +1824% (+10363%). Probado contra el Binance falso. Se apaga quitando "movimiento" de ajustes.json.

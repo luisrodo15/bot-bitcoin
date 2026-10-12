@@ -23,9 +23,9 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 // Estas opciones solo valen mientras estén en ajustes.json; si se quitan de ahí, se apagan (no se quedan guardadas en config.json).
-for (const k of ["gananciasA", "todoBTC", "reinvertir"]) if (AJ[k] === undefined) delete cfg[k];
+for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja"]) if (AJ[k] === undefined) delete cfg[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
@@ -130,7 +130,7 @@ async function revisarReal() {
   // Decide con la misma lógica de la simulación (sobre una copia) y luego lo hace de verdad.
   const copia = JSON.parse(JSON.stringify(st)); copia.usdt = 1e9; copia.trades = [];
   const decisiones = await decidir(copia, cfg, precio, ahora, mon);
-  st.ultimoPrecio = precio; st.ultimaRevision = ahora; st.ref = copia.ref;
+  st.ultimoPrecio = precio; st.ultimaRevision = ahora; st.ref = copia.ref; st.movVenta = copia.movVenta;
   const vendidas = [];
   for (const h of decisiones) {
     try { if (h.tipo === "COMPRA") await comprarReal(h, precio, ahora); else vendidas.push(await venderReal(h, precio, ahora)); }
