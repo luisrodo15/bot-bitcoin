@@ -3,6 +3,8 @@
 name: datos
 on:
   workflow_dispatch:
+    inputs:
+      pares: { description: "Pares a bajar", default: "BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT DOGEUSDT ADAUSDT USDTMXN USDCMXN USDCUSDT" }
   push:
     paths: [".github/workflows/datos.yml"]
 permissions:
@@ -21,15 +23,16 @@ jobs:
           print(' '.join(reversed(m)))")
           DIAS=$(python3 -c "import datetime as d;t=d.date.today();print(' '.join((t.replace(day=1)+d.timedelta(days=i)).isoformat() for i in range((t-t.replace(day=1)).days)))")
           echo "meses: $MESES"; echo "dias: $DIAS"
-          for M in BTC ETH SOL BNB XRP DOGE ADA; do
-            S=${M}USDT; : > tmp/$S.csv
+          for S in ${{ github.event.inputs.pares || 'BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT DOGEUSDT ADAUSDT USDTMXN USDCMXN USDCUSDT' }}; do
+            : > tmp/$S.csv
             for m in $MESES; do
-              curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/monthly/klines/$S/1m/$S-1m-$m.zip" && unzip -p tmp/z.zip >> tmp/$S.csv || echo "falta $S $m"
+              curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/monthly/klines/$S/1m/$S-1m-$m.zip" && unzip -p tmp/z.zip >> tmp/$S.csv || echo "falta $S $m"; true
             done
             for d in $DIAS; do
-              curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/daily/klines/$S/1m/$S-1m-$d.zip" && unzip -p tmp/z.zip >> tmp/$S.csv || echo "falta $S $d"
+              curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/daily/klines/$S/1m/$S-1m-$d.zip" && unzip -p tmp/z.zip >> tmp/$S.csv || echo "falta $S $d"; true
             done
             # minuto (ms), apertura, máximo, mínimo, cierre
+            [ -s tmp/$S.csv ] || { echo "$S no existe"; continue; }
             awk -F, '$1 ~ /^[0-9]+$/ { t=$1; if (t > 1e14) t=int(t/1000); print t","$2","$3","$4","$5 }' tmp/$S.csv | sort -t, -k1,1n -u | gzip -9 > out/$S.csv.gz
             echo "$S $(zcat out/$S.csv.gz | wc -l) filas"
           done
