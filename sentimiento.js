@@ -2,11 +2,11 @@
 // CoinMarketCap: mide noticias, redes sociales, volatilidad y volumen) junto con la tendencia de TradingView
 // (media EMA de 20 días contra la de 50 días, con velas diarias cerradas).
 // - Compra con todo el monto cuando hay codicia (índice >= cfg.codicia, normal 55) Y la EMA20 está arriba de la EMA50.
-// - Vende todo cuando hay miedo (índice <= cfg.miedo, normal 30) O la EMA20 cae abajo de la EMA50.
+// - Vende todo cuando hay miedo (índice <= cfg.miedo, normal 25) O la EMA20 cae abajo de la EMA50.
 // Probado 2018-2026 en precios diarios de 7 monedas: opera pocas veces al año; en años de bajada pierde mucho
 // menos que solo guardar, en años de subida gana menos que solo guardar. Puede perder.
 (function (root) {
-  const DEF = { codicia: 55, miedo: 30 };
+  const DEF = { codicia: 55, miedo: 25 };
   // Mismo contrato que Bot.revisar: modifica st y devuelve las operaciones (las ventas llevan `compra`).
   function revisar(st, cfg, precio, ahora, sen) {
     st.ultimoPrecio = precio; st.ultimaRevision = ahora;
