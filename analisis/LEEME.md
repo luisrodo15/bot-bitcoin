@@ -54,3 +54,9 @@ Miedo/codicia 45-65 / 20-35, EMAs 10/30, 20/50, 30/100, 50/200, movimiento 0/3/5
 - BTC: +43.5% sin seguimiento → +61.4% con seguimiento de 1% (2º semestre −11.6% → −0.6%). 0.5% da +56.8%, 2% da +47.7%.
 - BNB: +82.0% → +93.2%. ETH: +55.5% → +60.1%. SOL: +102.6% → +96.8% (un poco peor).
 Se activa con `"movimientoStop": 1` en ajustes.json.
+
+## Idea de Grok: vender solo una parte / no recomprar más caro — 2026-10-12
+`parcial.js` (base +3% con seguimiento 1%, recompra −3%). Último año, cantidad de moneda:
+- BTC: vender 100% +61.4% · 75% +58.2% · 50% +55.0% · 30% +52.5%. Con "nunca recomprar arriba": 37–45%. Con recompra +6%: 40–46%.
+- BNB y ETH: igual, vender todo con recompra −3/+3 gana (BNB 93.2%, ETH 60.1%).
+Conclusión: se queda como está (vende todo, recompra −3% o +3%).
