@@ -21,3 +21,11 @@ Uso: clonar la rama en una carpeta con su nombre junto a estos scripts, por ejem
 - chatgptfut.js (2026-10-12): reglas de futuros de ChatGPT (EMA50/200 1h, retroceso 15m, stop ATR, objetivo 1.5R, pausa tras 2 pérdidas). 12 meses: ETH −62% a 1x y −95% a 3x; BTC, SOL, BNB igual. ~700 operaciones al año, gana 39%; las comisiones se comen todo.
 - idea1.js (revisión 2026-10-12): fuerza de BNB contra BTC (20-90 días) y recompra rápida tras salir por EMA. Ninguna mejora de forma constante; no se cambió nada.
 - reinv_vs_btc.js (2026-10-12): con 12 USDT desde 2023, reinvertir todo en BNB = 66 USDT; pasar ganancias a BTC = 42 USDT (29 en BTC + 13 en el bot). Reinvertir gana; se dejó reinvertir.
+
+## swing.js (2026-10-12): más movimiento dentro de la tendencia
+El usuario quiere que el bot compre y venda más seguido. Probé: mientras la regla dice tener BNB, vender una parte (30%, 50% o todo)
+cuando sube X% (3/5/8/12) y recomprar al bajar Y% (3/5/8) o si sigue subiendo. Datos diarios desde 2018, comisión 0.075%.
+- Da 10 a 70 operaciones al año (la regla actual 3-5), pero casi siempre gana menos: BNB 2018-22 regla actual +10363%, la mejor variante +8711%.
+- 2023-hoy y último año: mezclado; +8/-8 con todo: 2023-hoy +531% (actual +451%) pero último año +11% (actual +30%) y 2018-22 +4375%.
+- Con 8 USDT no se puede mover solo una parte (Binance pide 5 USDT por orden), así que solo serviría la variante de todo.
+Conclusión: no lo pongo por mi cuenta; más operaciones = más comisiones y salir antes de las subidas grandes.
