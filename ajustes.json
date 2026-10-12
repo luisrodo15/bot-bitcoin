@@ -7,7 +7,7 @@
   "monto": 12,
   "saldoInicial": 12,
   "perdidaMax": 3,
-  "todoBTC": false,
+  "todoBTC": true,
   "reinvertir": true,
   "comision": 0.075
 }
