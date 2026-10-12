@@ -60,3 +60,9 @@ Se activa con `"movimientoStop": 1` en ajustes.json.
 - BTC: vender 100% +61.4% · 75% +58.2% · 50% +55.0% · 30% +52.5%. Con "nunca recomprar arriba": 37–45%. Con recompra +6%: 40–46%.
 - BNB y ETH: igual, vender todo con recompra −3/+3 gana (BNB 93.2%, ETH 60.1%).
 Conclusión: se queda como está (vende todo, recompra −3% o +3%).
+
+## Movimientos más chicos para operar más seguido — 2026-10-12
+`diario.js`: movimiento +1/+1.5/+2% con seguimiento 0.3/0.5% y recompra −1/−1.5/−2%. Último año, cantidad de moneda:
+- BTC: actual (+3 stop1 −3/+3) +61.4%; las 18 variantes chicas dan +38% a +53% y el 2º semestre entre −1.4% y −11%.
+- BNB: actual +93.2% vs 53–70%. ETH: actual +60.1%, solo +1 stop0.3 −2/+1 da 68.8% (126 op/año), pero falla en BTC y BNB.
+Las comisiones y el ruido se comen las ganancias. Se queda +3%.
