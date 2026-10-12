@@ -3,7 +3,7 @@
   "estrategia": "sentimiento",
   "codicia": 55,
   "miedo": 25,
-  "real": false,
+  "real": true,
   "monto": 12,
   "saldoInicial": 12,
   "perdidaMax": 3,
