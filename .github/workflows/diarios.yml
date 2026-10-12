@@ -1,4 +1,4 @@
-# Baja el índice de miedo y codicia (alternative.me, mide noticias y redes sociales) y precios diarios desde 2018.
+# Baja la bolsa de EUA, el índice de miedo y codicia (alternative.me, mide noticias y redes sociales) y precios diarios desde 2018.
 name: diarios
 on:
   workflow_dispatch:
@@ -21,6 +21,9 @@ jobs:
           while x<t: m.append(x.strftime('%Y-%m')); x=(x+d.timedelta(days=32)).replace(day=1)
           print(' '.join(m))")
           DIAS=$(python3 -c "import datetime as d;t=d.date.today();print(' '.join((t.replace(day=1)+d.timedelta(days=i)).isoformat() for i in range((t-t.replace(day=1)).days)))")
+          # Bolsa de EUA (S&P 500, Nasdaq, miedo de la bolsa VIX), de FRED; si falla, Yahoo.
+          for F in SP500 NASDAQCOM VIXCLS; do curl -sfL "https://fred.stlouisfed.org/graph/fredgraph.csv?id=$F" -o out/$F.csv || true; echo "$F $(wc -l < out/$F.csv 2>/dev/null) dias"; done
+          for Y in GSPC IXIC VIX; do curl -sfL -A "Mozilla/5.0" "https://query1.finance.yahoo.com/v8/finance/chart/%5E$Y?period1=1514764800&period2=9999999999&interval=1d" -o out/yahoo-$Y.json || true; echo "yahoo $Y $(wc -c < out/yahoo-$Y.json 2>/dev/null) bytes"; done
           for S in BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT DOGEUSDT ADAUSDT; do
             : > tmp/$S.csv
             for m in $MESES; do curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/monthly/klines/$S/1d/$S-1d-$m.zip" && unzip -p tmp/z.zip >> tmp/$S.csv || true; done
