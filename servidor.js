@@ -6,6 +6,7 @@
 const fs = require("fs"), path = require("path"), http = require("http"), crypto = require("crypto");
 require("./bot.js"); const Bot = globalThis.Bot;
 const Real = require("./real.js");
+require("./sentimiento.js"); const Sen = globalThis.Sentimiento;
 
 const DIR = __dirname;
 const F_CFG = path.join(DIR, "config.json"), F_AJ = path.join(DIR, "ajustes.json");
@@ -22,7 +23,7 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
@@ -33,7 +34,9 @@ const F_EST = path.join(DIR, REAL ? "estado-real.json" : "estado.json"), F_CSV =
 let st = leerJSON(F_EST, null) || Bot.estadoInicial(cfg);
 if (REAL && !st.real) { st = Bot.estadoInicial(cfg); st.real = true; st.usdt = 0; st.base = 0; }
 // Simulación: si cambió la moneda, empieza una simulación nueva. Real: cambia de moneda cuando no haya compras abiertas.
-if (!REAL && (st.moneda || "BTC") !== cfg.moneda) st = Bot.estadoInicial(cfg);
+if (!REAL && ((st.moneda || "BTC") !== cfg.moneda || (st.estrategia || "lotes") !== (cfg.estrategia || "lotes"))) st = Bot.estadoInicial(cfg);
+st.estrategia = cfg.estrategia || "lotes";
+const SENT = st.estrategia === "sentimiento";
 st.compras = st.compras || []; st.ajustes = st.ajustes || [];
 // Para quitar una pausa desde GitHub: subir el número "reanudar" en ajustes.json.
 if (AJ.reanudar !== undefined && AJ.reanudar !== st.reanudado) { st.reanudado = AJ.reanudar; st.pausado = null; }
@@ -42,6 +45,23 @@ function anotar(h) {
   if (!fs.existsSync(F_CSV)) fs.writeFileSync(F_CSV, "﻿fecha,tipo,precio_usdt,cantidad,usdt,comision_usdt,ganancia_usdt,motivo\n");
   fs.appendFileSync(F_CSV, [new Date(h.t).toISOString(), h.tipo, h.precio, h.btc.toFixed(8), h.usdt, h.comision, h.ganancia ?? "", `"${h.motivo}"`].join(",") + "\n");
 }
+
+// ---------- Señales para la estrategia "sentimiento" (se revisan cada 30 minutos) ----------
+const API_INDICE = process.env.API_INDICE || "https://api.alternative.me/fng/?limit=1";
+let sen = null;
+async function leerSenales(moneda) {
+  if (sen && sen.moneda === moneda && Date.now() - sen.t < 30 * 60000) return sen;
+  const r1 = await fetch(API_INDICE, { signal: AbortSignal.timeout(15000) });
+  if (!r1.ok) throw new Error("el índice de miedo y codicia respondió " + r1.status);
+  const d = (await r1.json()).data[0];
+  const r2 = await fetch(`${API}/api/v3/klines?symbol=${moneda}USDT&interval=1d&limit=300`, { signal: AbortSignal.timeout(15000) });
+  if (!r2.ok) throw new Error("Binance respondió " + r2.status);
+  const k = (await r2.json()).filter(v => v[6] < Date.now()).map(v => +v[4]); // solo velas diarias ya cerradas
+  if (k.length < 60) throw new Error("llegaron pocas velas diarias");
+  sen = { moneda, t: Date.now(), indice: +d.value, nombre: Sen.nombre(+d.value), e20: Sen.ema(k, 20), e50: Sen.ema(k, 50) };
+  st.senales = sen; return sen;
+}
+const decidir = async (est, c, precio, ahora, moneda) => SENT ? Sen.revisar(est, c, precio, ahora, await leerSenales(moneda)) : Bot.revisar(est, c, precio, ahora);
 
 let revisando = false;
 async function revisar() {
@@ -53,10 +73,10 @@ async function revisar() {
       const precio = +(await r.json()).price;
       if (!(precio > 0)) throw new Error("precio inválido");
       st.error = null;
-      for (const h of Bot.revisar(st, cfg, precio, Date.now())) { anotar(h); console.log(new Date().toISOString(), h.tipo, h.precio, h.motivo, h.ganancia ?? ""); }
+      for (const h of await decidir(st, cfg, precio, Date.now(), cfg.moneda)) { anotar(h); console.log(new Date().toISOString(), h.tipo, h.precio, h.motivo, h.ganancia ?? ""); }
     }
     if (st.trades.length > 500) st.trades = st.trades.slice(-500);
-    if (cfg.autoajuste && Date.now() - (st.ultimoAjuste || 0) > (cfg.ajusteHoras || 6) * 3600e3) ajustar();
+    if (!SENT && cfg.autoajuste && Date.now() - (st.ultimoAjuste || 0) > (cfg.ajusteHoras || 6) * 3600e3) ajustar();
   } catch (e) {
     st.error = (REAL ? "" : "No pude leer el precio: ") + e.message; st.ultimaRevision = Date.now();
     console.error(new Date().toISOString(), st.error);
@@ -86,7 +106,7 @@ async function revisarReal() {
   st.error = null; st.aviso = null;
   // Decide con la misma lógica de la simulación (sobre una copia) y luego lo hace de verdad.
   const copia = JSON.parse(JSON.stringify(st)); copia.usdt = 1e9; copia.trades = [];
-  const decisiones = Bot.revisar(copia, cfg, precio, ahora);
+  const decisiones = await decidir(copia, cfg, precio, ahora, mon);
   st.ultimoPrecio = precio; st.ultimaRevision = ahora; st.ref = copia.ref;
   for (const h of decisiones) {
     try { if (h.tipo === "COMPRA") await comprarReal(h, precio, ahora); else await venderReal(h, precio, ahora); }
@@ -99,9 +119,10 @@ async function revisarReal() {
   if (st.ganado <= -Math.abs(cfg.perdidaMax) && !st.pausado) st.pausado = `Pausado: la pérdida total llegó a ${st.ganado.toFixed(2)} USDT (tu tope es ${cfg.perdidaMax}).`;
 }
 async function comprarReal(h, precio, ahora) {
-  const monto = +cfg.monto;
+  // Sentimiento: usa todo el monto, o lo que haya libre si es menos.
+  const monto = SENT ? Math.min(+cfg.monto, Math.floor(st.usdtLibre * 0.995 * 100) / 100) : +cfg.monto;
   if (monto < par.minNotional * 1.15) { st.aviso = `El monto por compra (${monto} USDT) es muy chico: Binance pide más de ${par.minNotional} USDT y debe alcanzar para vender aunque baje.`; return; }
-  if (st.usdtLibre < monto) { st.aviso = `Quería comprar pero solo hay ${st.usdtLibre.toFixed(2)} USDT libres en Spot (necesita ${monto}).`; return; }
+  if (st.usdtLibre < monto || monto <= 0) { st.aviso = `Quería comprar pero solo hay ${st.usdtLibre.toFixed(2)} USDT libres en Spot (necesita ${monto}).`; return; }
   const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
   const qty = +o.executedQty, quote = +o.cummulativeQuoteQty, prom = quote / qty;
   const fee = await comisionUSDT(o, par.base, prom);
@@ -187,6 +208,10 @@ function pagina() {
   const espera = st.pausado ? "En pausa: " + st.pausado
     : (st.compras.length ? `Vender ≥ ${usd(Math.min(...n.ventas), p >= 1000 ? 0 : 2)} (${st.compras.length} de ${cfg.lotes} compras abiertas)` : "")
       + (n.compra ? `${st.compras.length ? " · " : ""}Comprar ≤ ${usd(n.compra, p >= 1000 ? 0 : 2)}` : "") || "Arrancando";
+  const sg = st.senales, cod = cfg.codicia ?? Sen.DEF.codicia, mie = cfg.miedo ?? Sen.DEF.miedo;
+  const esperaSent = st.pausado ? "En pausa: " + st.pausado : !sg ? "Leyendo señales…"
+    : st.compras.length ? `Tiene ${st.moneda} comprado. Vende si el índice baja a ${mie} o la EMA20 cae abajo de la EMA50.`
+    : `En USDT. Compra cuando el índice llegue a ${cod} y la EMA20 esté arriba de la EMA50.`;
   const filas = st.trades.slice(-50).reverse().map(t => `<tr><td>${cuando(t.t)}</td><td class="${t.tipo === "COMPRA" ? "up" : "down"}">${t.tipo}</td><td>${usd(t.precio)}</td><td class="${t.ganancia == null ? "" : t.ganancia >= 0 ? "up" : "down"}">${t.ganancia == null ? "" : signo(t.ganancia)}</td></tr>`).join("");
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Bot Cripto</title><style>
 body{margin:0;background:#070d1c;color:#e7ecf7;font:14px/1.5 system-ui,sans-serif}.w{max-width:720px;margin:0 auto;padding:18px 16px}
@@ -204,8 +229,11 @@ ${st.error ? `<div class="e">${st.error}</div>` : ""}${st.aviso ? `<div class="b
 <div class="g"><div class="k"><div class="l">Precio ${st.moneda || cfg.moneda}</div><div class="v">${p ? usd(p) : "…"}</div><div class="n">USDT</div></div>
 ${REAL ? `<div class="k"><div class="l">USDT libre en Spot</div><div class="v">${usd(st.usdtLibre || 0)}</div><div class="n">En compras abiertas: ${usd(abierto)} USDT</div></div>`
   : `<div class="k"><div class="l">Saldo ficticio</div><div class="v">${usd(total)}</div><div class="n ${dif >= 0 ? "up" : "down"}">${signo(dif)} USDT desde ${usd(st.base)}</div></div>`}
-<div class="k" style="grid-column:1/-1"><div class="l">Qué está esperando</div><div class="v gold" style="font-size:16px">${espera}</div><div class="n">Moneda: ${cfg.moneda} · Reglas: compra si baja ${cfg.bajada}%, vende si sube ${cfg.subida}%, ${cfg.monto} USDT por compra, hasta ${cfg.lotes} a la vez, tope ${cfg.tope}%</div></div></div>
-<div class="k" style="margin-bottom:12px"><div class="l">Ajuste automático ${cfg.autoajuste ? `(cada ${cfg.ajusteHoras || 6} horas)` : "(apagado)"}</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("") || `<div class="n">Todavía no hace su primera revisión.</div>`}</div>
+<div class="k" style="grid-column:1/-1"><div class="l">Qué está esperando</div>${SENT ? `<div class="v gold" style="font-size:16px">${esperaSent}</div><div class="n">Moneda: ${cfg.moneda} · Estrategia: noticias y redes (índice de miedo y codicia) + tendencia EMA 20/50 · ${cfg.monto} USDT</div></div></div>
+<div class="g"><div class="k"><div class="l">Miedo y codicia hoy</div><div class="v ${sg && sg.indice >= cod ? "up" : sg && sg.indice <= mie ? "down" : ""}">${sg ? sg.indice : "…"}</div><div class="n">${sg ? sg.nombre : ""} · compra ≥ ${cod}, vende ≤ ${mie}</div></div>
+<div class="k"><div class="l">Tendencia (EMA 20 / 50)</div><div class="v ${sg && sg.e20 > sg.e50 ? "up" : "down"}">${sg ? (sg.e20 > sg.e50 ? "Subiendo" : "Bajando") : "…"}</div><div class="n">${sg ? `EMA20 ${usd(sg.e20, 0)} · EMA50 ${usd(sg.e50, 0)}` : ""}</div></div></div>`
+  : `<div class="v gold" style="font-size:16px">${espera}</div><div class="n">Moneda: ${cfg.moneda} · Reglas: compra si baja ${cfg.bajada}%, vende si sube ${cfg.subida}%, ${cfg.monto} USDT por compra, hasta ${cfg.lotes} a la vez, tope ${cfg.tope}%</div></div></div>
+<div class="k" style="margin-bottom:12px"><div class="l">Ajuste automático ${cfg.autoajuste ? `(cada ${cfg.ajusteHoras || 6} horas)` : "(apagado)"}</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("") || `<div class="n">Todavía no hace su primera revisión.</div>`}</div>`}
 <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Precio</th><th>Ganancia</th></tr></thead><tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#8c9abb">Todavía no hay operaciones</td></tr>`}</tbody></table>
 <p class="n">Ganancia hecha: <span class="${st.ganado >= 0 ? "up" : "down"}">${signo(st.ganado)} USDT</span> en ${st.trades.filter(t => t.ganancia != null).length} ventas.</p>
 </div></body></html>`;
