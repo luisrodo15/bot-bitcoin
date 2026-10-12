@@ -1,5 +1,5 @@
 {
-  "moneda": "ETH",
+  "moneda": "BNB",
   "estrategia": "sentimiento",
   "codicia": 55,
   "miedo": 30,
@@ -7,5 +7,6 @@
   "monto": 12,
   "saldoInicial": 12,
   "perdidaMax": 3,
-  "todoBTC": false
+  "todoBTC": false,
+  "comision": 0.075
 }
