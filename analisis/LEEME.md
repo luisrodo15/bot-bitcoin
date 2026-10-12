@@ -47,3 +47,10 @@ Miedo/codicia 45-65 / 20-35, EMAs 10/30, 20/50, 30/100, 50/200, movimiento 0/3/5
 - 55/25 EMA20/50 sigue entre las mejores. Con movimiento 3%: 2025-hoy +48% (sin movimiento +28%), último año +14% (+9%), guardar -27%;
   en la subida fuerte 2023-24 gana menos (+68% vs +134%, guardar +466%). Mejor de todas en el peor periodo junto con 65/25. Se queda igual.
 - Medido en cantidad de BTC, último año +56%.
+
+## Venta con seguimiento (movimientoStop) — 2026-10-12
+`trailing.js`: en modo movimiento, al llegar a +3% ya no vende de inmediato; sigue al precio y vende cuando baja 1% desde el máximo.
+Último año, datos de 1 minuto, resultado en cantidad de moneda:
+- BTC: +43.5% sin seguimiento → +61.4% con seguimiento de 1% (2º semestre −11.6% → −0.6%). 0.5% da +56.8%, 2% da +47.7%.
+- BNB: +82.0% → +93.2%. ETH: +55.5% → +60.1%. SOL: +102.6% → +96.8% (un poco peor).
+Se activa con `"movimientoStop": 1` en ajustes.json.

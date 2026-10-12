@@ -29,13 +29,18 @@
     // y recompra al bajar cfg.movimientoBaja % (igual si no se pone) desde esa venta, o si sigue subiendo ese mismo %.
     const X = (+cfg.movimiento || 0) / 100, Y = (+(cfg.movimientoBaja ?? cfg.movimiento) || 0) / 100, malo = indice <= miedo || !sube;
     if (!X || malo || st.compras.length) st.movVenta = null;
-    if (X && !malo && st.compras.length && precio >= Math.max(...st.compras.map(c => c.precio)) * (1 + X)) {
+    // cfg.movimientoStop (%): al llegar a +X% no vende de inmediato; sigue al precio y vende cuando se regresa ese % desde el máximo.
+    const T = (+cfg.movimientoStop || 0) / 100, meta = st.compras.length ? Math.max(...st.compras.map(c => c.precio)) * (1 + X) : 0;
+    if (!X || !T || malo || !st.compras.length) st.movMax = null;
+    else if (st.movMax || precio >= meta) st.movMax = Math.max(st.movMax || 0, precio);
+    const vendeMov = X && !malo && st.compras.length && (T ? st.movMax && precio <= st.movMax * (1 - T) : precio >= meta);
+    if (vendeMov) {
       for (const c of st.compras.slice()) {
         const bruto = c.btc * precio, fee = bruto * com, neto = bruto - fee, ganancia = neto - c.costo;
         st.usdt += neto; st.btc = Math.max(0, st.btc - c.btc); st.compras.splice(st.compras.indexOf(c), 1); st.ganado += ganancia;
-        hechas.push({ t: ahora, tipo: "VENTA", compra: c.t, precio, btc: c.btc, usdt: neto, comision: fee, ganancia, motivo: `subió ${cfg.movimiento}% desde la compra (modo movimiento)` });
+        hechas.push({ t: ahora, tipo: "VENTA", compra: c.t, precio, btc: c.btc, usdt: neto, comision: fee, ganancia, motivo: T ? `subió ${cfg.movimiento}% o más y luego bajó ${cfg.movimientoStop}% desde el máximo (modo movimiento)` : `subió ${cfg.movimiento}% desde la compra (modo movimiento)` });
       }
-      st.movVenta = precio;
+      st.movVenta = precio; st.movMax = null;
     } else if (X && !malo && !st.compras.length && st.movVenta && (precio <= st.movVenta * (1 - Y) || precio >= st.movVenta * (1 + X))) {
       const monto = cfg.reinvertir ? Math.floor(st.usdt * 100) / 100 : Math.min(cfg.monto, st.usdt);
       if (monto >= Math.min(cfg.monto, 5)) {
