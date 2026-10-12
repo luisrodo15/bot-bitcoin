@@ -4,3 +4,6 @@ registro.csv
 cambios.log
 *.tmp
 node_modules/
+llave.json
+estado-real.json
+registro-real.csv

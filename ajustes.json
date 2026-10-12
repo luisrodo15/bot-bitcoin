@@ -1,0 +1,7 @@
+{
+  "moneda": "ETH",
+  "real": false,
+  "monto": 6,
+  "saldoInicial": 12,
+  "perdidaMax": 1
+}

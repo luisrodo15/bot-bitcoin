@@ -1,10 +1,14 @@
 // Bot Cripto para servidor: revisa el precio (BTC, ETH, SOL o BNB contra USDT) cada minuto, 24/7.
-// MODO SIMULACIÓN: dinero ficticio, solo lee el precio público de Binance. No usa claves.
+// Dos modos:
+// - SIMULACIÓN (normal): dinero ficticio, solo lee el precio público de Binance.
+// - DINERO REAL: solo si ajustes.json dice "real": true Y en el servidor hay una llave (llave.json, se pone
+//   con poner-llave.sh). La llave debe tener trading Spot y NO retiros. Ver real.js.
 const fs = require("fs"), path = require("path"), http = require("http"), crypto = require("crypto");
 require("./bot.js"); const Bot = globalThis.Bot;
+const Real = require("./real.js");
 
 const DIR = __dirname;
-const F_CFG = path.join(DIR, "config.json"), F_EST = path.join(DIR, "estado.json"), F_CSV = path.join(DIR, "registro.csv");
+const F_CFG = path.join(DIR, "config.json"), F_AJ = path.join(DIR, "ajustes.json");
 const API = process.env.API_BINANCE || "https://api.binance.com";
 const urlPrecio = () => `${API}/api/v3/ticker/price?symbol=${cfg.moneda}USDT`;
 const F_CAMBIOS = path.join(DIR, "cambios.log");
@@ -16,31 +20,114 @@ function guardarJSON(f, v) { fs.writeFileSync(f + ".tmp", JSON.stringify(v, null
 let cfg = leerJSON(F_CFG, null);
 if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, puerto: 8080, clavePanel: crypto.randomBytes(18).toString("base64url") }; guardarJSON(F_CFG, cfg); }
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
+// ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
+const AJ = leerJSON(F_AJ, {});
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
+guardarJSON(F_CFG, cfg);
+
+const llave = cfg.real ? Real.leerLlave() : null;
+const REAL = !!llave;
+const cli = REAL ? Real.crearCliente(API, llave) : null;
+const F_EST = path.join(DIR, REAL ? "estado-real.json" : "estado.json"), F_CSV = path.join(DIR, REAL ? "registro-real.csv" : "registro.csv");
 let st = leerJSON(F_EST, null) || Bot.estadoInicial(cfg);
-// Si cambiaste la moneda en config.json, empieza una simulación nueva con esa moneda.
-if ((st.moneda || "BTC") !== cfg.moneda) st = Bot.estadoInicial(cfg);
+if (REAL && !st.real) { st = Bot.estadoInicial(cfg); st.real = true; st.usdt = 0; st.base = 0; }
+// Simulación: si cambió la moneda, empieza una simulación nueva. Real: cambia de moneda cuando no haya compras abiertas.
+if (!REAL && (st.moneda || "BTC") !== cfg.moneda) st = Bot.estadoInicial(cfg);
 st.compras = st.compras || []; st.ajustes = st.ajustes || [];
+// Para quitar una pausa desde GitHub: subir el número "reanudar" en ajustes.json.
+if (AJ.reanudar !== undefined && AJ.reanudar !== st.reanudado) { st.reanudado = AJ.reanudar; st.pausado = null; }
 
 function anotar(h) {
-  if (!fs.existsSync(F_CSV)) fs.writeFileSync(F_CSV, "﻿fecha,tipo,precio_usdt,btc,usdt,comision_usdt,ganancia_usdt,motivo\n");
+  if (!fs.existsSync(F_CSV)) fs.writeFileSync(F_CSV, "﻿fecha,tipo,precio_usdt,cantidad,usdt,comision_usdt,ganancia_usdt,motivo\n");
   fs.appendFileSync(F_CSV, [new Date(h.t).toISOString(), h.tipo, h.precio, h.btc.toFixed(8), h.usdt, h.comision, h.ganancia ?? "", `"${h.motivo}"`].join(",") + "\n");
 }
 
+let revisando = false;
 async function revisar() {
+  if (revisando) return; revisando = true;
   try {
-    const r = await fetch(urlPrecio(), { signal: AbortSignal.timeout(15000) });
-    if (!r.ok) throw new Error("Binance respondió " + r.status);
-    const precio = +(await r.json()).price;
-    if (!(precio > 0)) throw new Error("precio inválido");
-    st.error = null;
-    for (const h of Bot.revisar(st, cfg, precio, Date.now())) { anotar(h); console.log(new Date().toISOString(), h.tipo, h.precio, h.motivo, h.ganancia ?? ""); }
+    if (REAL) await revisarReal(); else {
+      const r = await fetch(urlPrecio(), { signal: AbortSignal.timeout(15000) });
+      if (!r.ok) throw new Error("Binance respondió " + r.status);
+      const precio = +(await r.json()).price;
+      if (!(precio > 0)) throw new Error("precio inválido");
+      st.error = null;
+      for (const h of Bot.revisar(st, cfg, precio, Date.now())) { anotar(h); console.log(new Date().toISOString(), h.tipo, h.precio, h.motivo, h.ganancia ?? ""); }
+    }
     if (st.trades.length > 500) st.trades = st.trades.slice(-500);
     if (cfg.autoajuste && Date.now() - (st.ultimoAjuste || 0) > (cfg.ajusteHoras || 6) * 3600e3) ajustar();
   } catch (e) {
-    st.error = "No pude leer el precio: " + e.message; st.ultimaRevision = Date.now();
+    st.error = (REAL ? "" : "No pude leer el precio: ") + e.message; st.ultimaRevision = Date.now();
     console.error(new Date().toISOString(), st.error);
   }
-  guardarJSON(F_EST, st);
+  guardarJSON(F_EST, st); revisando = false;
+}
+
+// ---------- Dinero real ----------
+let par = null, llaveRevisada = 0, llaveMal = null; // se revisa al arrancar y cada 6 horas
+const sumaComision = (fills, activo) => (fills || []).filter(f => f.commissionAsset === activo).reduce((a, f) => a + +f.commission, 0);
+async function comisionUSDT(o, base, precio) {
+  let x = sumaComision(o.fills, "USDT") + sumaComision(o.fills, base) * precio;
+  const bnb = base === "BNB" ? 0 : sumaComision(o.fills, "BNB");
+  if (bnb) x += bnb * await cli.precio("BNBUSDT");
+  return x;
+}
+async function revisarReal() {
+  const mon = st.compras.length ? st.moneda : cfg.moneda;
+  if (st.moneda !== mon) { st.moneda = mon; st.ref = null; }
+  const simbolo = mon + "USDT";
+  if (Date.now() - llaveRevisada > 6 * 3600e3) { await cli.sincronizar(); llaveMal = await Real.revisarLlave(cli); llaveRevisada = Date.now(); }
+  if (llaveMal) throw new Error(llaveMal);
+  if (!par || par.simbolo !== simbolo) par = { simbolo, ...await cli.reglas(simbolo) };
+  const precio = await cli.precio(simbolo), ahora = Date.now();
+  const cta = await cli.cuenta(), libre = a => +((cta.balances || []).find(b => b.asset === a) || { free: 0 }).free;
+  st.usdtLibre = libre("USDT"); st.baseLibre = libre(par.base);
+  st.error = null; st.aviso = null;
+  // Decide con la misma lógica de la simulación (sobre una copia) y luego lo hace de verdad.
+  const copia = JSON.parse(JSON.stringify(st)); copia.usdt = 1e9; copia.trades = [];
+  const decisiones = Bot.revisar(copia, cfg, precio, ahora);
+  st.ultimoPrecio = precio; st.ultimaRevision = ahora; st.ref = copia.ref;
+  for (const h of decisiones) {
+    try { if (h.tipo === "COMPRA") await comprarReal(h, precio, ahora); else await venderReal(h, precio, ahora); }
+    catch (e) {
+      if (/No sé si|quedó en estado/.test(e.message)) st.pausado = `Pausado por seguridad: ${e.message}. Revisa tus órdenes en Binance.`;
+      else st.error = `No se pudo ${h.tipo === "COMPRA" ? "comprar" : "vender"}: ${e.message}`;
+      console.error(new Date().toISOString(), e.message); break;
+    }
+  }
+  if (st.ganado <= -Math.abs(cfg.perdidaMax) && !st.pausado) st.pausado = `Pausado: la pérdida total llegó a ${st.ganado.toFixed(2)} USDT (tu tope es ${cfg.perdidaMax}).`;
+}
+async function comprarReal(h, precio, ahora) {
+  const monto = +cfg.monto;
+  if (monto < par.minNotional * 1.15) { st.aviso = `El monto por compra (${monto} USDT) es muy chico: Binance pide más de ${par.minNotional} USDT y debe alcanzar para vender aunque baje.`; return; }
+  if (st.usdtLibre < monto) { st.aviso = `Quería comprar pero solo hay ${st.usdtLibre.toFixed(2)} USDT libres en Spot (necesita ${monto}).`; return; }
+  const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
+  const qty = +o.executedQty, quote = +o.cummulativeQuoteQty, prom = quote / qty;
+  const fee = await comisionUSDT(o, par.base, prom);
+  // Binance solo deja vender en pasos (ej. 0.0001 ETH). Lo que sobra ("polvo") se guarda con su costo
+  // y se vende junto con una venta futura cuando junta un paso completo.
+  const recibido = qty - sumaComision(o.fills, par.base), lote = +Real.aPaso(recibido, par.paso);
+  const pagado = quote + fee - sumaComision(o.fills, par.base) * prom; // USDT + comisión cobrada en BNB
+  st.polvo = +((st.polvo || 0) + recibido - lote).toFixed(10); st.polvoCosto = +((st.polvoCosto || 0) + pagado * (1 - lote / recibido)).toFixed(10);
+  const c = { precio: prom, btc: lote, costo: +(pagado * lote / recibido).toFixed(8), t: ahora, orden: o.orderId };
+  st.compras.push(c); st.usdtLibre -= quote;
+  const t = { t: ahora, tipo: "COMPRA", real: true, precio: prom, btc: lote, usdt: quote, comision: +fee.toFixed(8), motivo: h.motivo, orden: o.orderId };
+  st.trades.push(t); anotar(t); console.log(new Date().toISOString(), "COMPRA REAL", par.simbolo, lote, "a", prom);
+}
+async function venderReal(h, precio, ahora) {
+  const c = st.compras.find(x => x.t === h.compra); if (!c) return;
+  const cant = Real.aPaso(c.btc + (st.polvo || 0), par.paso), extra = Math.max(0, +cant - c.btc);
+  const costoExtra = extra && st.polvo ? st.polvoCosto * Math.min(1, extra / st.polvo) : 0;
+  if (st.baseLibre + 1e-12 < +cant) throw new Error(`no encuentro los ${cant} ${par.base} del bot en Spot (hay ${st.baseLibre})`);
+  const o = await cli.orden({ symbol: par.simbolo, side: "SELL", quantity: cant });
+  const qty = +o.executedQty, quote = +o.cummulativeQuoteQty, prom = quote / qty;
+  const fee = await comisionUSDT(o, par.base, prom), neto = quote - fee, ganancia = +(neto - c.costo - costoExtra).toFixed(8);
+  st.polvo = +Math.max(0, (st.polvo || 0) - extra).toFixed(10); st.polvoCosto = +Math.max(0, (st.polvoCosto || 0) - costoExtra).toFixed(10);
+  st.compras.splice(st.compras.indexOf(c), 1); st.ganado = +(st.ganado + ganancia).toFixed(8);
+  if (!st.compras.length) st.ref = prom;
+  const t = { t: ahora, tipo: h.tipo, real: true, precio: prom, btc: qty, usdt: +neto.toFixed(8), comision: +fee.toFixed(8), ganancia, motivo: h.motivo, orden: o.orderId };
+  st.trades.push(t); anotar(t); console.log(new Date().toISOString(), t.tipo, "REAL", par.simbolo, qty, "a", prom, "ganancia", ganancia);
 }
 
 // ---------- Ajuste automático (cada 6 horas; se cambia con ajusteHoras en config.json) ----------
@@ -96,6 +183,7 @@ const signo = x => (x >= 0 ? "+" : "−") + usd(Math.abs(x));
 const cuando = t => new Date(t).toLocaleString("es-MX", { timeZone: "America/Mexico_City", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 function pagina() {
   const p = st.ultimoPrecio || 0, total = st.usdt + st.btc * p, dif = total - st.base, n = Bot.niveles(st, cfg);
+  const abierto = st.compras.reduce((a, c) => a + c.btc * p, 0);
   const espera = st.pausado ? "En pausa: " + st.pausado
     : (st.compras.length ? `Vender ≥ ${usd(Math.min(...n.ventas), p >= 1000 ? 0 : 2)} (${st.compras.length} de ${cfg.lotes} compras abiertas)` : "")
       + (n.compra ? `${st.compras.length ? " · " : ""}Comprar ≤ ${usd(n.compra, p >= 1000 ? 0 : 2)}` : "") || "Arrancando";
@@ -110,10 +198,12 @@ h1{font-size:20px;margin:0 0 4px}h1 span{color:#f2b632}.sub{color:#8c9abb;font-s
 table{width:100%;border-collapse:collapse;font-size:13px;background:#0d1730;border:1px solid #1d2c52;border-radius:14px}th,td{padding:7px 8px;border-bottom:1px solid #1d2c52;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{color:#8c9abb;font-weight:500;font-size:11px}
 .up{color:#2fd08a}.down{color:#ff5d6c}.gold{color:#f2b632}</style></head><body><div class="w">
 <h1>Bot <span>Cripto</span></h1><p class="sub">Funcionando 24/7 en el servidor · revisado ${st.ultimaRevision ? cuando(st.ultimaRevision) : "…"} · se actualiza cada minuto</p>
-<div class="b"><b>MODO SIMULACIÓN.</b> Dinero ficticio con precios reales de Binance.</div>
-${st.error ? `<div class="e">${st.error}</div>` : ""}
-<div class="g"><div class="k"><div class="l">Precio ${cfg.moneda}</div><div class="v">${p ? usd(p) : "…"}</div><div class="n">USDT</div></div>
-<div class="k"><div class="l">Saldo ficticio</div><div class="v">${usd(total)}</div><div class="n ${dif >= 0 ? "up" : "down"}">${signo(dif)} USDT desde ${usd(st.base)}</div></div>
+${REAL ? `<div class="e"><b>DINERO REAL.</b> Compra y vende ${st.moneda} de verdad en tu Binance Spot, solo con USDT y solo vende lo que él compró.</div>`
+  : `<div class="b"><b>MODO SIMULACIÓN.</b> Dinero ficticio con precios reales de Binance.${cfg.real ? " Para pasar a dinero real falta poner la llave en el servidor." : ""}</div>`}
+${st.error ? `<div class="e">${st.error}</div>` : ""}${st.aviso ? `<div class="b">${st.aviso}</div>` : ""}
+<div class="g"><div class="k"><div class="l">Precio ${st.moneda || cfg.moneda}</div><div class="v">${p ? usd(p) : "…"}</div><div class="n">USDT</div></div>
+${REAL ? `<div class="k"><div class="l">USDT libre en Spot</div><div class="v">${usd(st.usdtLibre || 0)}</div><div class="n">En compras abiertas: ${usd(abierto)} USDT</div></div>`
+  : `<div class="k"><div class="l">Saldo ficticio</div><div class="v">${usd(total)}</div><div class="n ${dif >= 0 ? "up" : "down"}">${signo(dif)} USDT desde ${usd(st.base)}</div></div>`}
 <div class="k" style="grid-column:1/-1"><div class="l">Qué está esperando</div><div class="v gold" style="font-size:16px">${espera}</div><div class="n">Moneda: ${cfg.moneda} · Reglas: compra si baja ${cfg.bajada}%, vende si sube ${cfg.subida}%, ${cfg.monto} USDT por compra, hasta ${cfg.lotes} a la vez, tope ${cfg.tope}%</div></div></div>
 <div class="k" style="margin-bottom:12px"><div class="l">Ajuste automático ${cfg.autoajuste ? `(cada ${cfg.ajusteHoras || 6} horas)` : "(apagado)"}</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("") || `<div class="n">Todavía no hace su primera revisión.</div>`}</div>
 <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Precio</th><th>Ganancia</th></tr></thead><tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#8c9abb">Todavía no hay operaciones</td></tr>`}</tbody></table>
@@ -127,7 +217,7 @@ http.createServer((req, res) => {
   if (req.method !== "GET" || dada.length !== buena.length || !crypto.timingSafeEqual(dada, buena)) { res.writeHead(403, { "content-type": "text/plain; charset=utf-8" }); return res.end("Falta la clave: abre la dirección con ?clave=TU_CLAVE"); }
   if (u.pathname === "/registro.csv") { res.writeHead(200, { "content-type": "text/csv; charset=utf-8" }); return res.end(fs.existsSync(F_CSV) ? fs.readFileSync(F_CSV) : ""); }
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(pagina());
-}).listen(cfg.puerto, () => console.log(`Bot Cripto en simulación. Panel: http://IP-DEL-SERVIDOR:${cfg.puerto}/?clave=${cfg.clavePanel}`));
+}).listen(cfg.puerto, () => console.log(`Bot Cripto en ${REAL ? "DINERO REAL" : "simulación"}. Panel: http://IP-DEL-SERVIDOR:${cfg.puerto}/?clave=${cfg.clavePanel}`));
 
 // ---------- Actualización automática ----------
 // Si esta carpeta viene de GitHub, cada 30 minutos baja la versión más nueva. Si hubo cambios,

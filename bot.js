@@ -42,7 +42,7 @@
       st.usdt = r8(st.usdt + neto); st.btc = r8(st.btc - c.btc); if (st.btc < 1e-8) st.btc = 0;
       st.compras.splice(st.compras.indexOf(c), 1); st.ganado = r8(st.ganado + ganancia);
       const gano = precio >= meta;
-      hechas.push({ t: ahora, tipo: gano ? "VENTA" : "VENTA (tope)", precio, btc: c.btc, usdt: neto, comision: r8(fee), ganancia, motivo: `${gano ? "subió" : "bajó"} ${pct(precio, c.precio)} desde su compra a ${fmt(c.precio)}` });
+      hechas.push({ t: ahora, tipo: gano ? "VENTA" : "VENTA (tope)", compra: c.t, precio, btc: c.btc, usdt: neto, comision: r8(fee), ganancia, motivo: `${gano ? "subió" : "bajó"} ${pct(precio, c.precio)} desde su compra a ${fmt(c.precio)}` });
       if (st.ganado <= -Math.abs(cfg.perdidaMax)) st.pausado = `Pausado: la pérdida total llegó a ${st.ganado.toFixed(2)} USDT (tu tope es ${cfg.perdidaMax}).`;
     }
     if (!st.compras.length && hechas.length) st.ref = precio;
