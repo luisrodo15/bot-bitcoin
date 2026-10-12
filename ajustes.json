@@ -8,6 +8,7 @@
   "saldoInicial": 12,
   "perdidaMax": 3,
   "todoBTC": false,
-  "reinvertir": true,
-  "comision": 0.075
+  "reinvertir": false,
+  "comision": 0.075,
+  "gananciasA": "BTC"
 }
