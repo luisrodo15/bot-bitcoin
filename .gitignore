@@ -1,0 +1,6 @@
+config.json
+estado.json
+registro.csv
+cambios.log
+*.tmp
+node_modules/
