@@ -20,3 +20,4 @@ Uso: clonar la rama en una carpeta con su nombre junto a estos scripts, por ejem
 - ethfut.js (2026-10-12): 18 configuraciones de futuros en ETH (6 reglas de corto x 1x/1.5x/2x). Ninguna le gana a spot en 2020-2022 ni en 2023-hoy; la mejor (corto si EMA20<50 y F&G<45, 1x) da +490%/+85%/+6% vs spot +2201%/+145%/−10%.
 - chatgptfut.js (2026-10-12): reglas de futuros de ChatGPT (EMA50/200 1h, retroceso 15m, stop ATR, objetivo 1.5R, pausa tras 2 pérdidas). 12 meses: ETH −62% a 1x y −95% a 3x; BTC, SOL, BNB igual. ~700 operaciones al año, gana 39%; las comisiones se comen todo.
 - idea1.js (revisión 2026-10-12): fuerza de BNB contra BTC (20-90 días) y recompra rápida tras salir por EMA. Ninguna mejora de forma constante; no se cambió nada.
+- reinv_vs_btc.js (2026-10-12): con 12 USDT desde 2023, reinvertir todo en BNB = 66 USDT; pasar ganancias a BTC = 42 USDT (29 en BTC + 13 en el bot). Reinvertir gana; se dejó reinvertir.
