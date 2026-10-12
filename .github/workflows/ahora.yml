@@ -1,0 +1,33 @@
+# Baja lo más reciente de BNB (velas de 15 min, 1 h, 4 h y 1 d), el índice de miedo y codicia y el financiamiento
+# de futuros, para la revisión de cada hora. Se corre a mano (gh workflow run ahora) y guarda en la rama "ahora".
+name: ahora
+on:
+  workflow_dispatch:
+    inputs:
+      moneda:
+        default: BNB
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bajar datos recientes
+        run: |
+          set -e
+          M=${{ github.event.inputs.moneda || 'BNB' }}
+          mkdir -p out
+          for I in 15m 1h 4h 1d; do curl -sfL "https://data-api.binance.vision/api/v3/klines?symbol=${M}USDT&interval=$I&limit=1000" -o out/$M-$I.json || curl -sfL "https://api.binance.com/api/v3/klines?symbol=${M}USDT&interval=$I&limit=1000" -o out/$M-$I.json; done
+          curl -sfL "https://api.binance.com/api/v3/ticker/24hr?symbol=${M}USDT" -o out/$M-24h.json || true
+          curl -sfL "https://fapi.binance.com/fapi/v1/fundingRate?symbol=${M}USDT&limit=100" -o out/$M-financiamiento.json || true
+          curl -sfL "https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${M}USDT&period=1h&limit=100" -o out/$M-largos-cortos.json || true
+          curl -sfL "https://fapi.binance.com/futures/data/openInterestHist?symbol=${M}USDT&period=1h&limit=100" -o out/$M-interes-abierto.json || true
+          curl -sfL "https://api.alternative.me/fng/?limit=30" -o out/miedo-codicia.json
+          date -u +%FT%TZ > out/hora.txt
+          ls -la out
+      - name: Guardar en la rama ahora
+        run: |
+          cd out
+          git init -q -b ahora && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Datos de ahora $(date -u +%FT%TZ)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ahora
