@@ -39,3 +39,5 @@ Usuario quiere ganancias semanales. 25 combinaciones +X/-Y (1 a 5%):
 - Más chicos (+1%, +1.5%) ganan menos (+10% a +26%): más comisiones y recompra en bajadas. +2/-3 dio +48% pero sus vecinos +15%: suerte, no se usa.
 - Semanas con ganancia: solo 9% a 19% en todas, porque el bot está en USDT la mayor parte de un año de bajada (eso lo protege).
   Ninguna regla da ganancia todas las semanas.
+- swingbnb.js: lo mismo medido en cantidad de BNB (lo que el usuario quiere que crezca; meta: ganarle al 7% anual de Earn).
+  +3/-3 último año: BNB +82% (sin movimiento +74%); semanas con más BNB 53%, con menos 45%. 2a mitad (BNB subiendo): -3.6% BNB.
