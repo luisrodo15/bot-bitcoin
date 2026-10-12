@@ -49,7 +49,7 @@ function anotar(h) {
   fs.appendFileSync(F_CSV, [new Date(h.t).toISOString(), h.tipo, h.precio, h.btc.toFixed(8), h.usdt, h.comision, h.ganancia ?? "", `"${h.motivo}"`].join(",") + "\n");
 }
 
-// ---------- Señales para la estrategia "sentimiento" (se revisan cada 30 minutos) ----------
+// ---------- Señales para la estrategia "sentimiento" (se revisan cada minuto) ----------
 const API_INDICE = process.env.API_INDICE || "https://api.alternative.me/fng/?limit=200";
 let sen = null, graf = null;
 // Datos para la gráfica del panel: precio diario, EMAs y dónde habría comprado/vendido la estrategia en esos días.
@@ -65,7 +65,7 @@ function armarGrafica(kv, fg) {
   return { dias: kv.slice(desde).map((v, j) => ({ t: v[6], c: k[desde + j], e20: e20[desde + j], e50: e50[desde + j] })), marcas };
 }
 async function leerSenales(moneda) {
-  if (sen && sen.moneda === moneda && Date.now() - sen.t < 30 * 60000) return sen;
+  if (sen && sen.moneda === moneda && Date.now() - sen.t < 55000) return sen;
   const r1 = await fetch(API_INDICE, { signal: AbortSignal.timeout(15000) });
   if (!r1.ok) throw new Error("el índice de miedo y codicia respondió " + r1.status);
   const lista = (await r1.json()).data, d = lista[0], fg = new Map(lista.map(x => [Math.floor(+x.timestamp / 86400), +x.value]));
