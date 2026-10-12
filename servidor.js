@@ -24,6 +24,8 @@ cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
 for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+// Estas opciones solo valen mientras estén en ajustes.json; si se quitan de ahí, se apagan (no se quedan guardadas en config.json).
+for (const k of ["gananciasA", "todoBTC", "reinvertir"]) if (AJ[k] === undefined) delete cfg[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
@@ -181,8 +183,10 @@ async function venderReal(h, precio, ahora) {
   if (st.baseLibre + 1e-12 < +cant) throw new Error(`no encuentro los ${cant} ${par.base} del bot en Spot (hay ${st.baseLibre})`);
   const o = await cli.orden({ symbol: par.simbolo, side: "SELL", quantity: cant });
   const qty = +o.executedQty, quote = +o.cummulativeQuoteQty, prom = quote / qty;
-  const fee = await comisionUSDT(o, par.base, prom), neto = quote - fee, ganancia = +(neto - c.costo - costoExtra).toFixed(8);
-  st.polvo = +Math.max(0, (st.polvo || 0) - extra).toFixed(10); st.polvoCosto = +Math.max(0, (st.polvoCosto || 0) - costoExtra).toFixed(10);
+  // Si Binance solo deja vender menos que la compra (por el paso mínimo), lo que sobra queda como "polvo" con su parte del costo.
+  const resto = Math.max(0, c.btc - qty), costoResto = resto > 1e-12 ? c.costo * resto / c.btc : 0;
+  const fee = await comisionUSDT(o, par.base, prom), neto = quote - fee, ganancia = +(neto - (c.costo - costoResto) - costoExtra).toFixed(8);
+  st.polvo = +Math.max(0, (st.polvo || 0) - extra + (costoResto ? resto : 0)).toFixed(10); st.polvoCosto = +Math.max(0, (st.polvoCosto || 0) - costoExtra + costoResto).toFixed(10);
   st.compras.splice(st.compras.indexOf(c), 1); st.ganado = +(st.ganado + ganancia).toFixed(8);
   if (TODO) st.usdtBot = +((st.usdtBot || 0) + neto).toFixed(8);
   if (!st.compras.length) st.ref = prom;
@@ -317,7 +321,7 @@ ${alerta() ? `<div class="e"><b>ALERTA POR NOTICIAS.</b> ${alerta().motivo}. El 
 <div class="g"><div class="k"><div class="l">Precio ${st.moneda || cfg.moneda}</div><div class="v">${p ? usd(p) : "…"}</div><div class="n">USDT</div></div>
 ${REAL ? `<div class="k"><div class="l">USDT libre en Spot</div><div class="v">${usd(st.usdtLibre || 0)}</div><div class="n">En compras abiertas: ${usd(abierto)} USDT</div></div>`
   : `<div class="k"><div class="l">Saldo ficticio</div><div class="v">${usd(total)}</div><div class="n ${dif >= 0 ? "up" : "down"}">${signo(dif)} USDT desde ${usd(st.base)}</div></div>`}
-<div class="k" style="grid-column:1/-1"><div class="l">Qué está esperando</div>${SENT ? `<div class="v gold" style="font-size:16px">${esperaSent}</div><div class="n">Moneda: ${cfg.moneda} · Estrategia: noticias y redes (índice de miedo y codicia) + tendencia EMA 20/50 · ${cfg.monto} USDT${cfg.gananciasA === "BTC" ? " · las ganancias se pasan a Bitcoin" : cfg.reinvertir ? " + ganancias (reinvierte)" : ""}</div></div></div>
+<div class="k" style="grid-column:1/-1"><div class="l">Qué está esperando</div>${SENT ? `<div class="v gold" style="font-size:16px">${esperaSent}</div><div class="n">Moneda: ${cfg.moneda} · Estrategia: noticias y redes (índice de miedo y codicia) + tendencia EMA 20/50 · ${TODO ? `todo tu ${cfg.moneda} de Spot` : `${cfg.monto} USDT`}${cfg.gananciasA === "BTC" ? " · las ganancias se pasan a Bitcoin" : cfg.reinvertir ? " + ganancias (reinvierte)" : ""}</div></div></div>
 <div class="g"><div class="k"><div class="l">Miedo y codicia hoy</div><div class="v ${sg && sg.indice >= cod ? "up" : sg && sg.indice <= mie ? "down" : ""}">${sg ? sg.indice : "…"}</div><div class="n">${sg ? sg.nombre : ""} · compra ≥ ${cod}, vende ≤ ${mie}</div></div>
 <div class="k"><div class="l">Tendencia (EMA 20 / 50)</div><div class="v ${sg && sg.e20 > sg.e50 ? "up" : "down"}">${sg ? (sg.e20 > sg.e50 ? "Subiendo" : "Bajando") : "…"}</div><div class="n">${sg ? `EMA20 ${usd(sg.e20, 0)} · EMA50 ${usd(sg.e50, 0)}` : ""}</div></div></div>`
   : `<div class="v gold" style="font-size:16px">${espera}</div><div class="n">Moneda: ${cfg.moneda} · Reglas: compra si baja ${cfg.bajada}%, vende si sube ${cfg.subida}%, ${cfg.monto} USDT por compra, hasta ${cfg.lotes} a la vez, tope ${cfg.tope}%</div></div></div>
