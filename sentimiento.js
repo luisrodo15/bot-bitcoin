@@ -21,7 +21,7 @@
         hechas.push({ t: ahora, tipo: "VENTA", compra: c.t, precio, btc: c.btc, usdt: neto, comision: fee, ganancia, motivo: indice <= miedo ? `el índice bajó a ${indice} (miedo ≤ ${miedo})` : `la EMA20 cayó abajo de la EMA50 (tendencia de bajada)` });
       }
     } else if (!st.compras.length && indice >= codicia && sube) {
-      const monto = Math.min(cfg.monto, st.usdt);
+      const monto = cfg.reinvertir ? Math.floor(st.usdt * 100) / 100 : Math.min(cfg.monto, st.usdt); // reinvertir: usa todo, ganancias incluidas
       if (monto >= Math.min(cfg.monto, 5)) {
         const fee = monto * com, btc = (monto - fee) / precio;
         st.usdt -= monto; st.btc += btc; st.compras.push({ precio, btc, costo: monto, t: ahora });
