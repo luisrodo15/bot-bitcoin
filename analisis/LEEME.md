@@ -32,3 +32,10 @@ Conclusión: no lo pongo por mi cuenta; más operaciones = más comisiones y sal
 - 2026-10-12 19:25: el usuario pidió más operaciones ("pocas al año no me sirve"). Activado "movimiento": 3 (vende todo al +3% desde la compra
   mientras la tendencia es buena; recompra al -3% desde la venta o si sigue subiendo 3%). En swing.js (+3/-3 todo): BNB último año +36% (actual +30%),
   2023-hoy +410% (+451%), 2018-22 +1824% (+10363%). Probado contra el Binance falso. Se apaga quitando "movimiento" de ajustes.json.
+
+## swingmin.js (2026-10-12): movimiento con datos de 1 minuto, último año (BNB guardar: -25%)
+Usuario quiere ganancias semanales. 25 combinaciones +X/-Y (1 a 5%):
+- Regla sin movimiento +30%; +3/-3 (la activada) +36% (1a mitad +12%, 2a +21%), ~32 operaciones al año. Se queda.
+- Más chicos (+1%, +1.5%) ganan menos (+10% a +26%): más comisiones y recompra en bajadas. +2/-3 dio +48% pero sus vecinos +15%: suerte, no se usa.
+- Semanas con ganancia: solo 9% a 19% en todas, porque el bot está en USDT la mayor parte de un año de bajada (eso lo protege).
+  Ninguna regla da ganancia todas las semanas.
