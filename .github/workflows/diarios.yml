@@ -1,0 +1,36 @@
+# Baja el índice de miedo y codicia (alternative.me, mide noticias y redes sociales) y precios diarios desde 2018.
+name: diarios
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/diarios.yml"]
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bajar datos
+        run: |
+          set -e
+          mkdir -p out tmp
+          curl -sfL "https://api.alternative.me/fng/?limit=0&format=json" -o out/miedo-codicia.json
+          echo "indice: $(grep -o '"value"' out/miedo-codicia.json | wc -l) dias"
+          MESES=$(python3 -c "import datetime as d
+          t=d.date.today().replace(day=1);x=d.date(2018,1,1);m=[]
+          while x<t: m.append(x.strftime('%Y-%m')); x=(x+d.timedelta(days=32)).replace(day=1)
+          print(' '.join(m))")
+          DIAS=$(python3 -c "import datetime as d;t=d.date.today();print(' '.join((t.replace(day=1)+d.timedelta(days=i)).isoformat() for i in range((t-t.replace(day=1)).days)))")
+          for S in BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT DOGEUSDT ADAUSDT; do
+            : > tmp/$S.csv
+            for m in $MESES; do curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/monthly/klines/$S/1d/$S-1d-$m.zip" && unzip -p tmp/z.zip >> tmp/$S.csv || true; done
+            for d in $DIAS; do curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/daily/klines/$S/1d/$S-1d-$d.zip" && unzip -p tmp/z.zip >> tmp/$S.csv || true; done
+            awk -F, '$1 ~ /^[0-9]+$/ { t=$1; if (t > 1e14) t=int(t/1000); print t","$2","$3","$4","$5 }' tmp/$S.csv | sort -t, -k1,1n -u > out/$S-1d.csv
+            echo "$S $(wc -l < out/$S-1d.csv) dias"
+          done
+      - name: Guardar en la rama diarios
+        run: |
+          cd out
+          git init -q -b diarios && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Datos diarios $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" diarios
