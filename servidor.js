@@ -77,7 +77,9 @@ async function leerSenales(moneda) {
   try { graf = armarGrafica(kv, fg); } catch (e) { graf = null; }
   st.senales = sen; return sen;
 }
-const decidir = async (est, c, precio, ahora, moneda) => SENT ? Sen.revisar(est, c, precio, ahora, await leerSenales(moneda)) : Bot.revisar(est, c, precio, ahora);
+// Alerta por noticias: {"motivo": "...", "hasta": "2026-10-13T15:00:00Z"} en ajustes.json. Mientras dure, vende y no compra.
+const alerta = () => { const a = AJ.alerta; return a && a.motivo && Date.now() < Date.parse(a.hasta) ? a : null; };
+const decidir = async (est, c, precio, ahora, moneda) => SENT ? Sen.revisar(est, c, precio, ahora, { ...await leerSenales(moneda), alerta: alerta() && alerta().motivo }) : Bot.revisar(est, c, precio, ahora);
 
 let revisando = false;
 async function revisar() {
@@ -311,7 +313,7 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#0d1730;bord
 <h1>Bot <span>Cripto</span></h1><p class="sub">Funcionando 24/7 en el servidor · revisado ${st.ultimaRevision ? cuando(st.ultimaRevision) : "…"} · se actualiza cada minuto</p>
 ${REAL ? `<div class="e"><b>DINERO REAL.</b> ${TODO ? `Maneja todos tus ${st.moneda} de Spot: los pasa a USDT con miedo o tendencia de bajada y los recompra con codicia y tendencia de subida.` : `Compra y vende ${st.moneda} de verdad en tu Binance Spot, solo con USDT y solo vende lo que él compró.`}</div>`
   : `<div class="b"><b>MODO SIMULACIÓN.</b> Dinero ficticio con precios reales de Binance.${cfg.real ? " Para pasar a dinero real falta poner la llave en el servidor." : ""}</div>`}
-${st.error ? `<div class="e">${st.error}</div>` : ""}${st.aviso ? `<div class="b">${st.aviso}</div>` : ""}
+${alerta() ? `<div class="e"><b>ALERTA POR NOTICIAS.</b> ${alerta().motivo}. El bot vendió y no compra hasta el ${cuando(Date.parse(alerta().hasta))}</div>` : ""}${st.error ? `<div class="e">${st.error}</div>` : ""}${st.aviso ? `<div class="b">${st.aviso}</div>` : ""}
 <div class="g"><div class="k"><div class="l">Precio ${st.moneda || cfg.moneda}</div><div class="v">${p ? usd(p) : "…"}</div><div class="n">USDT</div></div>
 ${REAL ? `<div class="k"><div class="l">USDT libre en Spot</div><div class="v">${usd(st.usdtLibre || 0)}</div><div class="n">En compras abiertas: ${usd(abierto)} USDT</div></div>`
   : `<div class="k"><div class="l">Saldo ficticio</div><div class="v">${usd(total)}</div><div class="n ${dif >= 0 ? "up" : "down"}">${signo(dif)} USDT desde ${usd(st.base)}</div></div>`}

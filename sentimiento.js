@@ -12,6 +12,17 @@
     st.ultimoPrecio = precio; st.ultimaRevision = ahora;
     const hechas = [];
     if (!st.activo || st.pausado || !sen || sen.indice == null || sen.e20 == null) return hechas;
+    // Alerta por noticias (la pone Claude en ajustes.json cuando sale una noticia grave): vende y no compra mientras dure.
+    if (sen.alerta) {
+      const com = cfg.comision / 100;
+      for (const c of st.compras.slice()) {
+        const bruto = c.btc * precio, fee = bruto * com, neto = bruto - fee, ganancia = neto - c.costo;
+        st.usdt += neto; st.btc = Math.max(0, st.btc - c.btc); st.compras.splice(st.compras.indexOf(c), 1); st.ganado += ganancia;
+        hechas.push({ t: ahora, tipo: "VENTA", compra: c.t, precio, btc: c.btc, usdt: neto, comision: fee, ganancia, motivo: `alerta por noticias: ${sen.alerta}` });
+      }
+      for (const h of hechas) st.trades.push(h);
+      return hechas;
+    }
     const indice = sen.indice, sube = sen.e20 > sen.e50;
     const codicia = cfg.codicia ?? DEF.codicia, miedo = cfg.miedo ?? DEF.miedo, com = cfg.comision / 100;
     if (st.compras.length && (indice <= miedo || !sube)) {
