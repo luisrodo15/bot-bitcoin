@@ -117,7 +117,7 @@ async function comisionUSDT(o, base, precio) {
 }
 async function revisarReal() {
   const mon = st.compras.length ? st.moneda : cfg.moneda;
-  if (st.moneda !== mon) { st.moneda = mon; st.ref = null; }
+  if (st.moneda !== mon) { st.moneda = mon; st.ref = null; st.movVenta = null; }
   const simbolo = mon + "USDT";
   if (Date.now() - llaveRevisada > 6 * 3600e3) { await cli.sincronizar(); llaveMal = await Real.revisarLlave(cli); llaveRevisada = Date.now(); }
   if (llaveMal) throw new Error(llaveMal);

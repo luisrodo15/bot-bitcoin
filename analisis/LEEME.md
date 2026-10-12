@@ -41,3 +41,9 @@ Usuario quiere ganancias semanales. 25 combinaciones +X/-Y (1 a 5%):
   Ninguna regla da ganancia todas las semanas.
 - swingbnb.js: lo mismo medido en cantidad de BNB (lo que el usuario quiere que crezca; meta: ganarle al 7% anual de Earn).
   +3/-3 último año: BNB +82% (sin movimiento +74%); semanas con más BNB 53%, con menos 45%. 2a mitad (BNB subiendo): -3.6% BNB.
+
+## btcreglas.js (2026-10-12): el usuario cambia a Bitcoin; barrido de reglas para BTC
+Miedo/codicia 45-65 / 20-35, EMAs 10/30, 20/50, 30/100, 50/200, movimiento 0/3/5/8%. Periodos 2018-22, 2023-24, 2025-hoy, último año.
+- 55/25 EMA20/50 sigue entre las mejores. Con movimiento 3%: 2025-hoy +48% (sin movimiento +28%), último año +14% (+9%), guardar -27%;
+  en la subida fuerte 2023-24 gana menos (+68% vs +134%, guardar +466%). Mejor de todas en el peor periodo junto con 65/25. Se queda igual.
+- Medido en cantidad de BTC, último año +56%.
