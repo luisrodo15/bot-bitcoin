@@ -50,18 +50,31 @@ function anotar(h) {
 }
 
 // ---------- Señales para la estrategia "sentimiento" (se revisan cada 30 minutos) ----------
-const API_INDICE = process.env.API_INDICE || "https://api.alternative.me/fng/?limit=1";
-let sen = null;
+const API_INDICE = process.env.API_INDICE || "https://api.alternative.me/fng/?limit=200";
+let sen = null, graf = null;
+// Datos para la gráfica del panel: precio diario, EMAs y dónde habría comprado/vendido la estrategia en esos días.
+function armarGrafica(kv, fg) {
+  const k = kv.map(v => +v[4]), serie = n => { const a = 2 / (n + 1), o = []; k.forEach((p, i) => o.push(i ? p * a + o[i - 1] * (1 - a) : p)); return o; };
+  const e20 = serie(20), e50 = serie(50), cod = cfg.codicia ?? Sen.DEF.codicia, mie = cfg.miedo ?? Sen.DEF.miedo, desde = Math.max(0, kv.length - 120), marcas = [];
+  let en = false;
+  for (let i = 50; i < kv.length; i++) {
+    const f = fg.get(Math.floor(kv[i][0] / 864e5)); if (f == null) continue;
+    const sube = e20[i] > e50[i], q = en ? (f > mie && sube) : (f >= cod && sube);
+    if (q !== en) { en = q; if (i >= desde) marcas.push({ t: kv[i][6], p: k[i], tipo: q ? "COMPRA" : "VENTA" }); }
+  }
+  return { dias: kv.slice(desde).map((v, j) => ({ t: v[6], c: k[desde + j], e20: e20[desde + j], e50: e50[desde + j] })), marcas };
+}
 async function leerSenales(moneda) {
   if (sen && sen.moneda === moneda && Date.now() - sen.t < 30 * 60000) return sen;
   const r1 = await fetch(API_INDICE, { signal: AbortSignal.timeout(15000) });
   if (!r1.ok) throw new Error("el índice de miedo y codicia respondió " + r1.status);
-  const d = (await r1.json()).data[0];
+  const lista = (await r1.json()).data, d = lista[0], fg = new Map(lista.map(x => [Math.floor(+x.timestamp / 86400), +x.value]));
   const r2 = await fetch(`${API}/api/v3/klines?symbol=${moneda}USDT&interval=1d&limit=300`, { signal: AbortSignal.timeout(15000) });
   if (!r2.ok) throw new Error("Binance respondió " + r2.status);
-  const k = (await r2.json()).filter(v => v[6] < Date.now()).map(v => +v[4]); // solo velas diarias ya cerradas
+  const kv = (await r2.json()).filter(v => v[6] < Date.now()), k = kv.map(v => +v[4]); // solo velas diarias ya cerradas
   if (k.length < 60) throw new Error("llegaron pocas velas diarias");
   sen = { moneda, t: Date.now(), indice: +d.value, nombre: Sen.nombre(+d.value), e20: Sen.ema(k, 20), e50: Sen.ema(k, 50) };
+  try { graf = armarGrafica(kv, fg); } catch (e) { graf = null; }
   st.senales = sen; return sen;
 }
 const decidir = async (est, c, precio, ahora, moneda) => SENT ? Sen.revisar(est, c, precio, ahora, await leerSenales(moneda)) : Bot.revisar(est, c, precio, ahora);
@@ -220,6 +233,28 @@ async function ajustar() {
 const usd = (x, d = 2) => Number(x).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const signo = x => (x >= 0 ? "+" : "−") + usd(Math.abs(x));
 const cuando = t => new Date(t).toLocaleString("es-MX", { timeZone: "America/Mexico_City", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+// Gráfica de líneas (SVG, sin librerías): precio diario de los últimos 120 días, EMA20/EMA50,
+// círculos donde la estrategia habría comprado/vendido y triángulos donde el bot compró/vendió de verdad.
+function grafica() {
+  if (!graf || !graf.dias.length) return "";
+  const W = 680, H = 300, L = 6, R = 58, T = 12, B = 24, ahora = Date.now(), p = st.ultimoPrecio;
+  const puntos = graf.dias.map(d => [d.t, d.c]).concat(p ? [[ahora, p]] : []);
+  const t0 = graf.dias[0].t, t1 = ahora, mias = st.trades.filter(t => t.t >= t0);
+  const vals = graf.dias.flatMap(d => [d.c, d.e20, d.e50]).concat(p ? [p] : [], mias.map(t => t.precio));
+  let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * 0.08 || hi * 0.02; lo -= pad; hi += pad;
+  const x = t => (L + (t - t0) / (t1 - t0) * (W - L - R)).toFixed(1), y = v => (T + (hi - v) / (hi - lo) * (H - T - B)).toFixed(1);
+  const linea = (pts, color, ancho, extra = "") => `<polyline fill="none" stroke="${color}" stroke-width="${ancho}" stroke-linejoin="round" stroke-linecap="round" ${extra} points="${pts.map(([t, v]) => x(t) + "," + y(v)).join(" ")}"/>`;
+  const dec = hi >= 1000 ? 0 : 2, rejilla = [0, 1, 2, 3].map(j => { const v = lo + (hi - lo) * (0.1 + 0.8 * j / 3); return `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#1d2c52"/><text x="${W - R + 6}" y="${+y(v) + 4}" fill="#8c9abb" font-size="11">${usd(v, dec)}</text>`; }).join("");
+  const meses = []; for (let d = new Date(t0); d <= new Date(t1); d.setUTCDate(d.getUTCDate() + 1)) if (d.getUTCDate() === 1) meses.push(new Date(d));
+  const etiquetas = meses.map(d => `<line x1="${x(+d)}" x2="${x(+d)}" y1="${T}" y2="${H - B}" stroke="#14213f"/><text x="${x(+d)}" y="${H - 7}" fill="#8c9abb" font-size="11" text-anchor="middle">${d.toLocaleString("es-MX", { month: "short", timeZone: "UTC" })}</text>`).join("");
+  const habria = graf.marcas.map(m => `<circle cx="${x(m.t)}" cy="${y(m.p)}" r="5" fill="#070d1c" stroke="${m.tipo === "COMPRA" ? "#2fd08a" : "#ff5d6c"}" stroke-width="2"/>`).join("");
+  const reales = mias.map(t => { const cx = +x(t.t), cy = +y(t.precio), c = t.tipo === "COMPRA"; return `<path d="${c ? `M${cx} ${cy + 3}l-7 12h14z` : `M${cx} ${cy - 3}l-7 -12h14z`}" fill="${c ? "#2fd08a" : "#ff5d6c"}" stroke="#070d1c" stroke-width="1.5"/>`; }).join("");
+  const ult = p ? `<circle cx="${x(ahora)}" cy="${y(p)}" r="4" fill="#f2b632"/><rect x="${W - R + 2}" y="${+y(p) - 9}" width="${R - 4}" height="18" rx="5" fill="#f2b632"/><text x="${W - R + 6}" y="${+y(p) + 4}" fill="#070d1c" font-size="11" font-weight="700">${usd(p, dec)}</text>` : "";
+  return `<div class="k" style="margin-bottom:12px"><div class="l">${st.moneda || cfg.moneda} · últimos 120 días</div>
+<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="Precio con compras y ventas">${rejilla}${etiquetas}
+${linea(graf.dias.map(d => [d.t, d.e50]), "#8c9abb", 1.2, 'stroke-dasharray="4 4"')}${linea(graf.dias.map(d => [d.t, d.e20]), "#5aa9ff", 1.4)}${linea(puntos, "#f2b632", 2.2)}${habria}${ult}${reales}</svg>
+<div class="n" style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px"><span><b style="color:#f2b632">━</b> precio</span><span><b style="color:#5aa9ff">━</b> EMA20</span><span><b style="color:#8c9abb">┅</b> EMA50</span><span><b class="up">▲</b>/<b class="down">▼</b> compra/venta del bot</span><span><b class="up">○</b>/<b class="down">○</b> dónde la estrategia habría comprado/vendido</span></div></div>`;
+}
 function pagina() {
   const p = st.ultimoPrecio || 0, total = st.usdt + st.btc * p, dif = total - st.base, n = Bot.niveles(st, cfg);
   const abierto = st.compras.reduce((a, c) => a + c.btc * p, 0);
@@ -252,6 +287,7 @@ ${REAL ? `<div class="k"><div class="l">USDT libre en Spot</div><div class="v">$
 <div class="k"><div class="l">Tendencia (EMA 20 / 50)</div><div class="v ${sg && sg.e20 > sg.e50 ? "up" : "down"}">${sg ? (sg.e20 > sg.e50 ? "Subiendo" : "Bajando") : "…"}</div><div class="n">${sg ? `EMA20 ${usd(sg.e20, 0)} · EMA50 ${usd(sg.e50, 0)}` : ""}</div></div></div>`
   : `<div class="v gold" style="font-size:16px">${espera}</div><div class="n">Moneda: ${cfg.moneda} · Reglas: compra si baja ${cfg.bajada}%, vende si sube ${cfg.subida}%, ${cfg.monto} USDT por compra, hasta ${cfg.lotes} a la vez, tope ${cfg.tope}%</div></div></div>
 <div class="k" style="margin-bottom:12px"><div class="l">Ajuste automático ${cfg.autoajuste ? `(cada ${cfg.ajusteHoras || 6} horas)` : "(apagado)"}</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("") || `<div class="n">Todavía no hace su primera revisión.</div>`}</div>`}
+${SENT ? grafica() : ""}
 <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Precio</th><th>Ganancia</th></tr></thead><tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#8c9abb">Todavía no hay operaciones</td></tr>`}</tbody></table>
 <p class="n">Ganancia hecha: <span class="${st.ganado >= 0 ? "up" : "down"}">${signo(st.ganado)} USDT</span> en ${st.trades.filter(t => t.ganancia != null).length} ventas.</p>
 </div></body></html>`;
