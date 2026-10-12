@@ -302,7 +302,7 @@ http.createServer((req, res) => {
 }).listen(cfg.puerto, () => console.log(`Bot Cripto en ${REAL ? "DINERO REAL" : "simulación"}. Panel: http://IP-DEL-SERVIDOR:${cfg.puerto}/?clave=${cfg.clavePanel}`));
 
 // ---------- Actualización automática ----------
-// Si esta carpeta viene de GitHub, cada 30 minutos baja la versión más nueva. Si hubo cambios,
+// Si esta carpeta viene de GitHub, cada 2 minutos baja la versión más nueva. Si hubo cambios,
 // el programa se cierra y el servicio lo vuelve a abrir ya actualizado (tus datos no se tocan).
 const { execFile } = require("child_process");
 const git = (...a) => new Promise((ok, mal) => execFile("git", a, { cwd: DIR, timeout: 60000 }, (e, out) => e ? mal(e) : ok(out.trim())));
@@ -320,6 +320,6 @@ async function actualizar() {
   } catch (e) { console.error(new Date().toISOString(), "No pude buscar actualizaciones:", e.message.split("\n")[0]); }
   actualizando = false;
 }
-if (fs.existsSync(path.join(DIR, ".git"))) { const cada = +process.env.ACTUALIZAR_MS || 30 * 60000; setTimeout(actualizar, Math.min(cada, 5 * 60000)); setInterval(actualizar, cada); }
+if (fs.existsSync(path.join(DIR, ".git"))) { const cada = +process.env.ACTUALIZAR_MS || 2 * 60000; setTimeout(actualizar, Math.min(cada, 5 * 60000)); setInterval(actualizar, cada); }
 
 revisar(); setInterval(revisar, +process.env.INTERVALO_MS || 60000);
