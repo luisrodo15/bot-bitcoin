@@ -32,7 +32,8 @@
     // cfg.movimientoStop (%): al llegar a +X% no vende de inmediato; sigue al precio y vende cuando se regresa ese % desde el máximo.
     const T = (+cfg.movimientoStop || 0) / 100, meta = st.compras.length ? Math.max(...st.compras.map(c => c.precio)) * (1 + X) : 0;
     if (!X || !T || malo || !st.compras.length) st.movMax = null;
-    else if (st.movMax || precio >= meta) st.movMax = Math.max(st.movMax || 0, precio);
+    // sen.alto: el precio más alto de las velas de 1 minuto desde la revisión anterior, para no perder picos de segundos.
+    else { const alto = Math.max(precio, +sen.alto || 0); if (st.movMax || alto >= meta) st.movMax = Math.max(st.movMax || 0, alto); }
     const vendeMov = X && !malo && st.compras.length && (T ? st.movMax && precio <= st.movMax * (1 - T) : precio >= meta);
     if (vendeMov) {
       for (const c of st.compras.slice()) {

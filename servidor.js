@@ -81,7 +81,7 @@ async function leerSenales(moneda) {
 }
 // Alerta por noticias: {"motivo": "...", "hasta": "2026-10-13T15:00:00Z"} en ajustes.json. Mientras dure, vende y no compra.
 const alerta = () => { const a = AJ.alerta; return a && a.motivo && Date.now() < Date.parse(a.hasta) ? a : null; };
-const decidir = async (est, c, precio, ahora, moneda) => SENT ? Sen.revisar(est, c, precio, ahora, { ...await leerSenales(moneda), alerta: alerta() && alerta().motivo }) : Bot.revisar(est, c, precio, ahora);
+const decidir = async (est, c, precio, ahora, moneda, alto) => SENT ? Sen.revisar(est, c, precio, ahora, { ...await leerSenales(moneda), alerta: alerta() && alerta().motivo, alto }) : Bot.revisar(est, c, precio, ahora);
 
 let revisando = false;
 async function revisar() {
@@ -130,7 +130,10 @@ async function revisarReal() {
   if (TODO && cfg.comprarConMXN) try { const bnbPesos = await cuidarBNB(libre("BNB"), libre("MXN")); await usarPesos(libre("MXN") - bnbPesos, ahora); } catch (e) { st.error = "No se pudieron usar tus pesos: " + e.message; }
   // Decide con la misma lógica de la simulación (sobre una copia) y luego lo hace de verdad.
   const copia = JSON.parse(JSON.stringify(st)); copia.usdt = 1e9; copia.trades = [];
-  const decisiones = await decidir(copia, cfg, precio, ahora, mon);
+  // Lo más alto de los últimos minutos (velas de 1 minuto cerradas o en curso desde la revisión anterior).
+  let alto = 0; try { const r = await fetch(`${API}/api/v3/klines?symbol=${simbolo}&interval=1m&limit=3`, { signal: AbortSignal.timeout(8000) });
+    if (r.ok) for (const k of await r.json()) if (k[6] >= (st.ultimaRevision || 0) - 1000) alto = Math.max(alto, +k[2]); } catch (e) {}
+  const decisiones = await decidir(copia, cfg, precio, ahora, mon, alto);
   st.ultimoPrecio = precio; st.ultimaRevision = ahora; st.ref = copia.ref; st.movVenta = copia.movVenta; st.movMax = copia.movMax;
   const vendidas = [];
   for (const h of decisiones) {
