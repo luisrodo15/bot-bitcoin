@@ -149,6 +149,8 @@ async function revisarReal() {
 // minuto siguiente adoptar() los suma con precio promedio; si está en USDT (vendió y espera recomprar), los pasa a USDT
 // (par USDT/MXN) para que la siguiente compra sea con todo. Si son menos del mínimo de Binance, los junta.
 const parMXN = {};
+// Para la gráfica en vivo: dónde compró BTC con tus pesos (precio en USDT de ese momento).
+const marcaPesos = (btc, mxn) => { (st.pesos = st.pesos || []).push({ t: Date.now(), precio: st.ultimoPrecio, btc, mxn }); st.pesos = st.pesos.slice(-50); };
 async function usarPesos(mxn, ahora) {
   if (!(mxn > 0)) return;
   const enMoneda = st.compras.length > 0, simbolo = (enMoneda ? st.moneda : "USDT") + "MXN";
@@ -159,7 +161,7 @@ async function usarPesos(mxn, ahora) {
     try {
       const c = await cli.convertir("MXN", r.base, monto);
       if (!enMoneda) { st.usdtBot = +((st.usdtBot || 0) + c.recibido).toFixed(8); st.usdtLibre += c.recibido; }
-      st.convertirMsg = null;
+      st.convertirMsg = null; if (enMoneda) marcaPesos(c.recibido, c.pagado);
       anotarAjuste(`Convertí ${c.pagado.toFixed(2)} pesos que depositaste en ${c.recibido.toFixed(8)} ${r.base}${enMoneda ? "" : " (los guardo para la siguiente compra de " + st.moneda + ")"}.`);
       console.log(new Date().toISOString(), "PESOS (convertir)", c.pagado, "MXN ->", c.recibido, r.base);
     } catch (e) {
@@ -170,7 +172,7 @@ async function usarPesos(mxn, ahora) {
   }
   const o = await cli.orden({ symbol: simbolo, side: "BUY", quoteOrderQty: String(monto) });
   const neto = +o.executedQty - sumaComision(o.fills, r.base), pagado = +o.cummulativeQuoteQty;
-  if (!enMoneda) { st.usdtBot = +((st.usdtBot || 0) + neto).toFixed(8); st.usdtLibre += neto; }
+  if (!enMoneda) { st.usdtBot = +((st.usdtBot || 0) + neto).toFixed(8); st.usdtLibre += neto; } else marcaPesos(neto, pagado);
   anotarAjuste(`Compré ${neto.toFixed(8)} ${r.base} con ${pagado.toFixed(2)} pesos que depositaste${enMoneda ? "" : " (los guardo en USDT para la siguiente compra de " + st.moneda + ")"}.`);
   console.log(new Date().toISOString(), "PESOS", pagado, "MXN ->", neto, r.base);
 }
@@ -339,12 +341,14 @@ async function vivo() {
     if (st.movMax) { lineas.push({ n: "máximo", v: st.movMax, c: "#2fd08a" }); lineas.push({ n: "vende si baja a", v: st.movMax * (1 - MOVS / 100), c: "#ff5d6c" }); }
     else if (MOV) lineas.push({ n: "meta de venta", v: compra * (1 + MOV / 100), c: "#2fd08a" }); }
   else if (st.movVenta && MOV) { lineas.push({ n: "vendió", v: st.movVenta, c: "#8c9abb" }); lineas.push({ n: "recompra", v: st.movVenta * (1 - MOVB / 100), c: "#2fd08a" }); lineas.push({ n: "recompra si sube", v: st.movVenta * (1 + MOVZ / 100), c: "#5aa9ff" }); }
-  const ventas = st.trades.filter(t => t.t >= ahora - 6 * 36e5 && (t.tipo === "COMPRA" || t.tipo === "VENTA")).map(t => ({ t: t.t, p: t.precio, tipo: t.tipo }));
+  const ventas = st.trades.filter(t => t.t >= ahora - 6 * 36e5 && (t.tipo === "COMPRA" || t.tipo === "VENTA")).map(t => ({ t: t.t, p: t.precio, tipo: t.tipo }))
+    .concat((st.pesos || []).filter(x => x.t >= ahora - 6 * 36e5 && x.precio).map(x => ({ t: x.t, p: x.precio, tipo: "PESOS" })));
   cacheVivo = { t: ahora, d: { t: ahora, p, moneda: st.moneda || cfg.moneda, puntos: cacheVelas.v.concat(p ? [[ahora, p]] : []), lineas, ops: ventas } };
   return cacheVivo.d;
 }
 const graficaVivo = () => `<div class="k" style="margin-bottom:12px"><div class="l">En vivo · últimas 6 horas</div><div class="v gold" id="vp">…</div><div class="n" id="vn">Conectando…</div>
-<svg id="vg" viewBox="0 0 680 260" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="Precio en vivo con las líneas del bot"></svg></div>
+<svg id="vg" viewBox="0 0 680 260" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="Precio en vivo con las líneas del bot"></svg>
+<div class="n" style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px"><span><b class="up">▲</b>/<b class="down">▼</b> compra/venta del bot</span><span><b class="up">$</b> compra con tus pesos</span><span>líneas: precio de compra, meta y venta</span></div></div>
 <script>(()=>{const q=location.search,f=(x,d)=>Number(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
 async function pinta(){try{const r=await fetch("vivo.json"+q,{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json(),W=680,H=260,L=6,R=118,T=10,B=22;
 const P=d.puntos;if(!P.length)return;const t0=P[0][0],t1=d.t,vs=P.map(a=>a[1]).concat(d.lineas.map(l=>l.v));let lo=Math.min(...vs),hi=Math.max(...vs);const pad=(hi-lo)*.08||hi*.002;lo-=pad;hi+=pad;
@@ -352,7 +356,7 @@ const x=t=>(L+(t-t0)/(t1-t0||1)*(W-L-R)).toFixed(1),y=v=>(T+(hi-v)/(hi-lo)*(H-T-
 for(let j=0;j<=6;j++){const t=t1-j*36e5;if(t<t0)break;s+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="#14213f"/><text x="'+x(t)+'" y="'+(H-6)+'" fill="#8c9abb" font-size="11" text-anchor="middle">'+new Date(t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City",hour:"numeric",minute:"2-digit"})+'</text>';}
 for(const l of d.lineas)s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(l.v)+'" y2="'+y(l.v)+'" stroke="'+l.c+'" stroke-dasharray="5 4" stroke-width="1.4"/><text x="'+(W-R+4)+'" y="'+(+y(l.v)-2)+'" fill="'+l.c+'" font-size="10.5">'+l.n+'</text><text x="'+(W-R+4)+'" y="'+(+y(l.v)+10)+'" fill="'+l.c+'" font-size="10.5">'+f(l.v,0)+'</text>';
 s+='<polyline fill="none" stroke="#f2b632" stroke-width="2" stroke-linejoin="round" points="'+P.map(a=>x(a[0])+","+y(a[1])).join(" ")+'"/>';
-for(const o of d.ops){const cx=+x(o.t),cy=+y(o.p),c=o.tipo==="COMPRA";s+='<path d="'+(c?"M"+cx+" "+(cy+3)+"l-7 12h14z":"M"+cx+" "+(cy-3)+"l-7 -12h14z")+'" fill="'+(c?"#2fd08a":"#ff5d6c")+'"/>';}
+for(const o of d.ops){const cx=+x(o.t),cy=+y(o.p),c=o.tipo==="COMPRA";if(o.tipo==="PESOS"){s+='<circle cx="'+cx+'" cy="'+cy+'" r="8" fill="#2fd08a" stroke="#070d1c" stroke-width="1.5"/><text x="'+cx+'" y="'+(cy+4)+'" fill="#070d1c" font-size="11" font-weight="700" text-anchor="middle">$</text>';continue;}s+='<path d="'+(c?"M"+cx+" "+(cy+3)+"l-7 12h14z":"M"+cx+" "+(cy-3)+"l-7 -12h14z")+'" fill="'+(c?"#2fd08a":"#ff5d6c")+'"/>';}
 s+='<circle cx="'+x(t1)+'" cy="'+y(d.p)+'" r="4.5" fill="#f2b632"/>';document.getElementById("vg").innerHTML=s;
 document.getElementById("vp").textContent=f(d.p,2)+" USDT";const m=d.lineas.find(l=>l.n==="meta de venta"||l.n==="vende si baja a"||l.n==="recompra");
 document.getElementById("vn").textContent="Actualizado "+new Date(d.t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City"})+(m?" · "+m.n+" "+f(m.v,0)+" ("+((m.v/d.p-1)*100>=0?"+":"")+((m.v/d.p-1)*100).toFixed(2)+"%)":"");}
