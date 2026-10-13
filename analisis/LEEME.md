@@ -93,3 +93,7 @@ stop8.js (stop móvil sobre la regla diaria desde 2018, BTC): sin stop 2018-22 +
 ## sem4h.js (2026-10-13): tendencia en velas de 4 horas en vez de diaria
 Mismo modo semanal, BTC último año, cantidad de BTC: diaria EMA20/50 (actual) +66.9% | 4h EMA20/50 +41.4% (2a mitad -9.3%) | 4h EMA50/200 +56.0% | 4h EMA30/90 +34.2% (2a mitad -11.2%) | 4h EMA120/300 (= diaria) +66.9%.
 4h da señales falsas que voltean seguido. Se queda la diaria.
+
+## semdia.js (2026-10-13): "mínimo una operación por día"
+Movimientos muy chicos (+0.3 a +0.8%, stop 0.1-0.2%, recompra -0.3 a -1%), BTC último año: el mejor +50.0% BTC con 71 ops/año (2a mitad -6.7%); actual +66.9% con 51.
+Ni con +0.3% se llega a 365 ops/año porque la regla de tendencia deja al bot fuera muchos días. Más operaciones = menos BTC. No se cambia.
