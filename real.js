@@ -36,6 +36,20 @@ function crearCliente(API, llave) {
       const f = t => sym.filters.find(x => x.filterType === t) || {};
       return { base: sym.baseAsset, paso: f("LOT_SIZE").stepSize, minQty: +f("LOT_SIZE").minQty || 0, minNotional: +(f("NOTIONAL").minNotional || f("MIN_NOTIONAL").minNotional || 5) };
     },
+    // Convertir (como "Convertir"/"Comprar Cripto" de la app): acepta montos muy chicos (desde ~1 peso). Pide cotización,
+    // la acepta y espera a que Binance diga que terminó. Devuelve cuánto se recibió.
+    async convertir(de, a, monto) {
+      const q = await llamar("POST", "/sapi/v1/convert/getQuote", { fromAsset: de, toAsset: a, fromAmount: String(monto), walletType: "SPOT" });
+      if (!q.quoteId) throw new Error(q.msg || "Binance no dio cotización para convertir");
+      const r = await llamar("POST", "/sapi/v1/convert/acceptQuote", { quoteId: q.quoteId });
+      for (let i = 0; i < 10; i++) {
+        const s = await llamar("GET", "/sapi/v1/convert/orderStatus", { orderId: r.orderId });
+        if (s.orderStatus === "SUCCESS") return { recibido: +s.toAmount, pagado: +s.fromAmount };
+        if (s.orderStatus === "FAIL") throw new Error("Binance no completó la conversión");
+        await new Promise(ok => setTimeout(ok, 1500));
+      }
+      throw new Error("No sé si la conversión se hizo (sigue en proceso)");
+    },
     // Orden de mercado. Si la red falla a la mitad, pregunta a Binance si la orden sí se hizo.
     async orden(params) {
       const id = "bot" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex");

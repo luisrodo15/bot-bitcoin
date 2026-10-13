@@ -153,11 +153,25 @@ async function usarPesos(mxn, ahora) {
   if (!(mxn > 0)) return;
   const enMoneda = st.compras.length > 0, simbolo = (enMoneda ? st.moneda : "USDT") + "MXN";
   const r = parMXN[simbolo] || (parMXN[simbolo] = await cli.reglas(simbolo)), monto = Math.floor(mxn * 100) / 100;
-  if (monto < r.minNotional * 1.01) { if (mxn >= 1) st.aviso = `Tienes ${mxn.toFixed(2)} pesos en Spot. Binance pide al menos ${r.minNotional} MXN por compra; los junto hasta llegar.`; return; }
+  if (monto < r.minNotional * 1.01) {
+    // Muy poquito para el mercado: usa Convertir (acepta desde ~1 peso). Si falla, reintenta en una hora.
+    if (monto < 1 || Date.now() - (st.convertirFallo || 0) < 3600e3) { if (mxn >= 1 && st.convertirMsg) st.aviso = st.convertirMsg; return; }
+    try {
+      const c = await cli.convertir("MXN", r.base, monto);
+      if (!enMoneda) { st.usdtBot = +((st.usdtBot || 0) + c.recibido).toFixed(8); st.usdtLibre += c.recibido; }
+      st.convertirMsg = null;
+      anotarAjuste(`Convertí ${c.pagado.toFixed(2)} pesos que depositaste en ${c.recibido.toFixed(8)} ${r.base}${enMoneda ? "" : " (los guardo para la siguiente compra de " + st.moneda + ")"}.`);
+      console.log(new Date().toISOString(), "PESOS (convertir)", c.pagado, "MXN ->", c.recibido, r.base);
+    } catch (e) {
+      st.convertirFallo = Date.now();
+      st.convertirMsg = st.aviso = `Tienes ${mxn.toFixed(2)} pesos en Spot. El mercado pide al menos ${r.minNotional} MXN y Convertir no se pudo (${e.message}); los junto hasta llegar.`;
+    }
+    return;
+  }
   const o = await cli.orden({ symbol: simbolo, side: "BUY", quoteOrderQty: String(monto) });
   const neto = +o.executedQty - sumaComision(o.fills, r.base), pagado = +o.cummulativeQuoteQty;
   if (!enMoneda) { st.usdtBot = +((st.usdtBot || 0) + neto).toFixed(8); st.usdtLibre += neto; }
-  anotarAjuste(`Compré ${+neto.toFixed(8)} ${r.base} con ${pagado.toFixed(2)} pesos que depositaste${enMoneda ? "" : " (los guardo en USDT para la siguiente compra de " + st.moneda + ")"}.`);
+  anotarAjuste(`Compré ${neto.toFixed(8)} ${r.base} con ${pagado.toFixed(2)} pesos que depositaste${enMoneda ? "" : " (los guardo en USDT para la siguiente compra de " + st.moneda + ")"}.`);
   console.log(new Date().toISOString(), "PESOS", pagado, "MXN ->", neto, r.base);
 }
 function adoptar(precio, ahora) {
