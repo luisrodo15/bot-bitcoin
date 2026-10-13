@@ -115,3 +115,6 @@ Conclusión: con tendencia buena la configuración actual ya da venta casi cada 
 ## grid.js (2026-10-13): combinación que da venta ganadora en MÁS semanas con tendencia buena
 375 combinaciones (+0.6 a +1.5, stop 0.1-0.5, recompra -0.5 a -2.5, sube x0.5/1/2). Último año hubo 9 semanas con tendencia buena.
 Ninguna da 9/9; el máximo es 8/9 y la actual (+1.2/0.3/-2/+2.4) ya lo logra con BTC +66.9%. +1.5/0.4/-2.5/+3 da 8/9 y +68.1% (diferencia de ruido). No se cambia.
+
+## grid.js, recompra de arriba (2026-10-13)
+Con -2% abajo y distintas recompras arriba, BTC último año: +2.4% (actual) +66.9%, 25 ventas | +3% +41.5% | +4% +57.5% | +5% +50.0% | sin recompra arriba +38.3%, 4 ventas. Se queda +2.4%.
