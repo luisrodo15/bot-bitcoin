@@ -143,3 +143,9 @@ Mejor: Bollinger k2 recompra en la media, +62.7% de BTC con 5 ventas (2a mitad -
 ## hibrido4h.js, bot actual + RSI de 4h (2026-10-13)
 Al bot actual se le suma: vende si RSI 4h >= A con ganancia >= m, y/o recompra antes si RSI 4h <= B bajo el precio de venta.
 RSI 67-71 con m 0.3-0.5% da +74.4% de BTC (2a mitad +3.8%) contra +66.9%, con las mismas 51 ops: es UNA sola venta distinta que cambió el camino. RSI 65 o 72-75 caen a +56.9%, y m >= 0.8% queda igual que el actual. La recompra por RSI no ayuda (45 baja a +52.6%). Frágil, no se adopta; vigilar en la revisión diaria.
+
+## Mismo modo semanal en otras monedas, en dólares (2026-10-13)
++1.2/0.3/-2/+2.4 con la regla del bot, último año, ganancia en USDT (año / 1a mitad / 2a mitad, ops):
+BTC +19.8% / +0.7% / +18.9%, 51 ops · BNB +19.0% / +4.7% / +13.7%, 67 ops · XRP +3.7%, 42 ops · SOL -2.4%, 49 ops · ETH -3.3%, 47 ops.
+Solo comprar y guardar: BTC -28%, BNB -27%, ETH -41%, SOL -49%, XRP -53%.
+BTC sigue siendo el mejor. BNB gana casi igual en dólares con más operaciones (posible segunda moneda para tener más ventas). ETH, que es la moneda del video, sale peor.
