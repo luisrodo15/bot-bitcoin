@@ -78,3 +78,8 @@ recomprar si sigue subiendo (antes era igual a `movimiento`). Elegida: +1.2% con
 - BTC último año: +66.9% BTC (51 op/año ≈ 1 por semana), mitades +66.9% / 0.0%. Antes (+3/stop1/−3/+3): +61.4%, 17 op, mitades +62.4% / −0.6%.
 - ETH 63.9% (antes 60.1), SOL 92.6% (96.8), BNB 63.7% (93.2: en BNB el +3% es mejor).
 - Ojo: los vecinos varían mucho (stop 0.5% da 55.9% en BTC; stop 0.7% da 69.1%), así que parte es suerte de este año. Revisar seguido.
+
+## chatgptspot.js (2026-10-13)
+Estrategia de ChatGPT: 4h EMA50>EMA200, 1h precio>EMA200, rebote en EMA20 de 1h, TP +1.5% / SL -0.8%, una operación a la vez.
+BTC último año (precio -26.5%): USDT -30.1%, cantidad de BTC -4.8%, 107 ops (29 ganadas, 78 perdidas), 58% de semanas con menos BTC.
+Variantes (TP 1.2-2%, SL 0.8-1.5%) entre -6% y +1.3% de BTC. Muy por debajo de la del bot (+67% BTC). No se usa.
