@@ -123,3 +123,7 @@ Con -2% abajo y distintas recompras arriba, BTC último año: +2.4% (actual) +66
 Meta, stop y recompra como fracción del ATR14 diario (ATR medio BTC 3.45%). 24 combinaciones.
 La mejor (meta 0.5×ATR, stop 0.15×ATR, recompra -0.7×ATR) da +67.8% BTC pero 36 ops/año contra 51 de la actual (+66.9%), y sus vecinas caen a +55% o menos. No es robusta y da menos ventas. No se cambia.
 Repetición semanal.js/semchk.js con datos al 13-oct: la actual sigue entre las mejores (+66.9%, 1a mitad +68.1%, 2a mitad -0.7%).
+
+## soporte.js, video "Spot Trading sin riesgo" (2026-10-13)
+Del video (gráficas y su hoja de operaciones): compra con orden límite en soporte, vende en resistencia +3% a +9%, sin stop, 1h/4h con EMAs, RSI y volumen. Clon: compra cuando la vela de 1h toca el mínimo de los últimos 3/7/14 días, vende a +2/3/5/8%, nunca en pérdida, con y sin filtro del bot. (Los datos de 1 minuto no traen volumen, así que la confirmación de volumen no hizo nada.)
+Último año BTC: la mejor da +3% de BTC y -31% en USDT. Compró en el primer soporte y se quedó atorada hasta 368 días sin vender (0-1 ventas en la 1a mitad). En la 2a mitad (subida) hace 3-11 ventas pero queda entre -1% y +3% de BTC. El bot actual da +66.9% de BTC con ~25 ventas. No se adopta.
