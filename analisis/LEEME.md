@@ -105,3 +105,9 @@ Su venta mínima (+0.1%) queda por debajo de las comisiones (0.15% ida y vuelta)
 ## Ojo: "ops/año" cuenta compras Y ventas (2026-10-13)
 Actual 51 ops/año ≈ 25 ventas con ganancia al año ≈ 1 cada 2 semanas. Lo más seguido (+0.3%, 149-162 ops) ≈ 75-80 ventas ≈ 1.5 por semana, con BTC +40%.
 2 ganancias por semana (~100 ventas) no se alcanza con ninguna combinación probada. Sin el filtro de tendencia el bot se queda atorado en bajadas: menos ops y BTC -4% a +2%.
+
+## ideas.js + tiempo.js (2026-10-13): semanas con al menos una venta ganadora
+- tiempo.js: el último año la regla de tendencia solo estuvo "dentro" 62 de 376 días (16%): 3-13 oct 2025 y desde 21 ago 2026. Fuera, el bot está en USDT y no vende; por eso solo 15% de semanas del año tuvieron venta.
+- Desde 21-ago-2026 (tendencia buena): actual +1.2% -> 22 ventas, todas ganadoras, venta en 6 de 7 semanas. +0.6% -> 4 de 7. +0.3% -> 57 de 66 ganadoras, 4 de 7.
+- Dividir en lotes (20-50% con meta chica +0.3/0.5/0.6, resto actual): BTC +50% a +63% (peor que +66.9%) y no sube las semanas con venta (15-17%).
+Conclusión: con tendencia buena la configuración actual ya da venta casi cada semana; en tendencia mala, operar pierde. No se cambia.
