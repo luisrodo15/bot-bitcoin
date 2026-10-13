@@ -71,3 +71,10 @@ Las comisiones y el ruido se comen las ganancias. Se queda +3%.
 `reserva.js`: comprar ya vs. esperar a que baje 2/3/5% (máx. 3/7/14 días, si no, compra igual). BTC extra promedio:
 2018-22 entre −0.3% y +0.1%; 2023-hoy entre −0.8% y −0.2%; último año +0.1% a +0.4%. Esperar gana 50–85% de las veces
 pero pierde más cuando BTC sube sin parar. En promedio da lo mismo: no se agrega. Mejor que el usuario compre BTC directo.
+
+## Operaciones semanales (petición del usuario) — 2026-10-13
+`semanal.js` (400 combinaciones con ≥40 op/año) y `semchk.js` (candidatas en 4 monedas). Nuevo: `movimientoSube` = % para
+recomprar si sigue subiendo (antes era igual a `movimiento`). Elegida: +1.2% con seguimiento 0.3%, recompra −2% o +2.4%.
+- BTC último año: +66.9% BTC (51 op/año ≈ 1 por semana), mitades +66.9% / 0.0%. Antes (+3/stop1/−3/+3): +61.4%, 17 op, mitades +62.4% / −0.6%.
+- ETH 63.9% (antes 60.1), SOL 92.6% (96.8), BNB 63.7% (93.2: en BNB el +3% es mejor).
+- Ojo: los vecinos varían mucho (stop 0.5% da 55.9% en BTC; stop 0.7% da 69.1%), así que parte es suerte de este año. Revisar seguido.

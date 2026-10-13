@@ -27,7 +27,7 @@
     const codicia = cfg.codicia ?? DEF.codicia, miedo = cfg.miedo ?? DEF.miedo, com = cfg.comision / 100;
     // Modo movimiento (cfg.movimiento = % de subida): mientras la tendencia es buena, vende todo al subir ese % desde la compra
     // y recompra al bajar cfg.movimientoBaja % (igual si no se pone) desde esa venta, o si sigue subiendo ese mismo %.
-    const X = (+cfg.movimiento || 0) / 100, Y = (+(cfg.movimientoBaja ?? cfg.movimiento) || 0) / 100, malo = indice <= miedo || !sube;
+    const X = (+cfg.movimiento || 0) / 100, Y = (+(cfg.movimientoBaja ?? cfg.movimiento) || 0) / 100, malo = indice <= miedo || !sube, Z = (+(cfg.movimientoSube ?? cfg.movimiento) || 0) / 100; // Z: recompra si sigue subiendo ese % desde la venta
     if (!X || malo || st.compras.length) st.movVenta = null;
     // cfg.movimientoStop (%): al llegar a +X% no vende de inmediato; sigue al precio y vende cuando se regresa ese % desde el máximo.
     const T = (+cfg.movimientoStop || 0) / 100, meta = st.compras.length ? Math.max(...st.compras.map(c => c.precio)) * (1 + X) : 0;
@@ -41,12 +41,12 @@
         hechas.push({ t: ahora, tipo: "VENTA", compra: c.t, precio, btc: c.btc, usdt: neto, comision: fee, ganancia, motivo: T ? `subió ${cfg.movimiento}% o más y luego bajó ${cfg.movimientoStop}% desde el máximo (modo movimiento)` : `subió ${cfg.movimiento}% desde la compra (modo movimiento)` });
       }
       st.movVenta = precio; st.movMax = null;
-    } else if (X && !malo && !st.compras.length && st.movVenta && (precio <= st.movVenta * (1 - Y) || precio >= st.movVenta * (1 + X))) {
+    } else if (X && !malo && !st.compras.length && st.movVenta && (precio <= st.movVenta * (1 - Y) || precio >= st.movVenta * (1 + Z))) {
       const monto = cfg.reinvertir ? Math.floor(st.usdt * 100) / 100 : Math.min(cfg.monto, st.usdt);
       if (monto >= Math.min(cfg.monto, 5)) {
         const fee = monto * com, btc = (monto - fee) / precio, baja = precio < st.movVenta;
         st.usdt -= monto; st.btc += btc; st.compras.push({ precio, btc, costo: monto, t: ahora });
-        hechas.push({ t: ahora, tipo: "COMPRA", precio, btc, usdt: monto, comision: fee, motivo: baja ? `bajó ${Math.round(Y * 100)}% desde la venta (modo movimiento)` : `siguió subiendo ${cfg.movimiento}% desde la venta (modo movimiento)` });
+        hechas.push({ t: ahora, tipo: "COMPRA", precio, btc, usdt: monto, comision: fee, motivo: baja ? `bajó ${+(Y * 100).toFixed(2)}% desde la venta (modo movimiento)` : `siguió subiendo ${cfg.movimientoSube ?? cfg.movimiento}% desde la venta (modo movimiento)` });
         st.movVenta = null;
       }
     } else if (st.compras.length && (indice <= miedo || !sube)) {

@@ -23,9 +23,9 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 // Estas opciones solo valen mientras estén en ajustes.json; si se quitan de ahí, se apagan (no se quedan guardadas en config.json).
-for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop"]) if (AJ[k] === undefined) delete cfg[k];
+for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube"]) if (AJ[k] === undefined) delete cfg[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
@@ -300,11 +300,11 @@ function pagina() {
   const espera = st.pausado ? "En pausa: " + st.pausado
     : (st.compras.length ? `Vender ≥ ${usd(Math.min(...n.ventas), p >= 1000 ? 0 : 2)} (${st.compras.length} de ${cfg.lotes} compras abiertas)` : "")
       + (n.compra ? `${st.compras.length ? " · " : ""}Comprar ≤ ${usd(n.compra, p >= 1000 ? 0 : 2)}` : "") || "Arrancando";
-  const MOV = +cfg.movimiento || 0, MOVS = +cfg.movimientoStop || 0, MOVB = +(cfg.movimientoBaja ?? cfg.movimiento) || 0;
+  const MOV = +cfg.movimiento || 0, MOVS = +cfg.movimientoStop || 0, MOVB = +(cfg.movimientoBaja ?? cfg.movimiento) || 0; const MOVZ = +(cfg.movimientoSube ?? cfg.movimiento) || 0;
   const sg = st.senales, cod = cfg.codicia ?? Sen.DEF.codicia, mie = cfg.miedo ?? Sen.DEF.miedo;
   const esperaSent = st.pausado ? "En pausa: " + st.pausado : !sg ? "Leyendo señales…"
     : st.compras.length ? `Tiene ${st.moneda} comprado.${MOV ? (st.movMax ? ` Ya pasó +${MOV}% (máximo ${usd(st.movMax, 2)}): vende si baja a ${usd(st.movMax * (1 - MOVS / 100), 2)}.` : ` Al llegar a ${usd(Math.max(...st.compras.map(c => c.precio)) * (1 + MOV / 100), 2)} (+${MOV}%)${MOVS ? ` sigue al precio y vende cuando baje ${MOVS}% desde el máximo` : " vende con ganancia"}.`) : ""} Vende todo si el índice baja a ${mie} o la EMA20 cae abajo de la EMA50.`
-    : st.movVenta ? `En USDT tras vender con ganancia. Recompra a ${usd(st.movVenta * (1 - MOVB / 100), 2)} (-${MOVB}%) o a ${usd(st.movVenta * (1 + MOV / 100), 2)} si sigue subiendo.`
+    : st.movVenta ? `En USDT tras vender con ganancia. Recompra a ${usd(st.movVenta * (1 - MOVB / 100), 2)} (-${MOVB}%) o a ${usd(st.movVenta * (1 + MOVZ / 100), 2)} (+${MOVZ}%) si sigue subiendo.`
     : `En USDT. Compra cuando el índice llegue a ${cod} y la EMA20 esté arriba de la EMA50.`;
   // Lo que le importa al usuario: cuánto BTC tiene y cuánto BTC le ha ganado el bot (cada venta comparada con su recompra).
   let vendido = null, ganBtc = 0, vueltas = 0;

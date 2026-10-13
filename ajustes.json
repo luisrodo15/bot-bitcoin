@@ -10,6 +10,8 @@
   "todoBTC": true,
   "reinvertir": true,
   "comision": 0.075,
-  "movimiento": 3,
-  "movimientoStop": 1
+  "movimiento": 1.2,
+  "movimientoStop": 0.3,
+  "movimientoBaja": 2,
+  "movimientoSube": 2.4
 }
