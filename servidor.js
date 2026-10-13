@@ -23,9 +23,9 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 // Estas opciones solo valen mientras estén en ajustes.json; si se quitan de ahí, se apagan (no se quedan guardadas en config.json).
-for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN"]) if (AJ[k] === undefined) delete cfg[k];
+for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos"]) if (AJ[k] === undefined) delete cfg[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
@@ -127,7 +127,7 @@ async function revisarReal() {
   st.usdtLibre = libre("USDT"); st.baseLibre = libre(par.base);
   st.error = null; st.aviso = null;
   if (TODO) adoptar(precio, ahora);
-  if (TODO && cfg.comprarConMXN) try { await usarPesos(libre("MXN"), ahora); } catch (e) { st.error = "No se pudieron usar tus pesos: " + e.message; }
+  if (TODO && cfg.comprarConMXN) try { const bnbPesos = await cuidarBNB(libre("BNB"), libre("MXN")); await usarPesos(libre("MXN") - bnbPesos, ahora); } catch (e) { st.error = "No se pudieron usar tus pesos: " + e.message; }
   // Decide con la misma lógica de la simulación (sobre una copia) y luego lo hace de verdad.
   const copia = JSON.parse(JSON.stringify(st)); copia.usdt = 1e9; copia.trades = [];
   const decisiones = await decidir(copia, cfg, precio, ahora, mon);
@@ -149,13 +149,27 @@ async function revisarReal() {
 // minuto siguiente adoptar() los suma con precio promedio; si está en USDT (vendió y espera recomprar), los pasa a USDT
 // (par USDT/MXN) para que la siguiente compra sea con todo. Si son menos del mínimo de Binance, los junta.
 const parMXN = {};
+// Comisiones: si te queda poco BNB (menos de bnbMin USD, 0.5 por omisión), toma unos pesos de tu depósito
+// (bnbPesos, 20 por omisión) y los convierte en BNB antes de comprar BTC. Si falla, reintenta en una hora.
+async function cuidarBNB(bnb, mxn) {
+  const min = +(cfg.bnbMin ?? 0.5), pesos = +(cfg.bnbPesos ?? 20);
+  if (!(mxn >= 1) || !min || Date.now() - (st.bnbFallo || 0) < 3600e3) return 0;
+  const usdBnb = bnb * await cli.precio("BNBUSDT"); if (usdBnb >= min) return 0;
+  try {
+    const c = await cli.convertir("MXN", "BNB", Math.floor(Math.min(mxn, pesos) * 100) / 100);
+    anotarAjuste(`Te quedaba poco BNB para comisiones (${usdBnb.toFixed(2)} USD): convertí ${c.pagado.toFixed(2)} pesos de tu depósito en ${c.recibido.toFixed(6)} BNB.`);
+    return c.pagado;
+  } catch (e) { st.bnbFallo = Date.now(); st.aviso = `Te queda poco BNB para comisiones y no pude comprarlo con tus pesos (${e.message}). Mientras, Binance cobra la comisión normal.`; return 0; }
+}
 // Para la gráfica en vivo: dónde compró BTC con tus pesos (precio en USDT de ese momento).
 const marcaPesos = (btc, mxn) => { (st.pesos = st.pesos || []).push({ t: Date.now(), precio: st.ultimoPrecio, btc, mxn }); st.pesos = st.pesos.slice(-50); };
 async function usarPesos(mxn, ahora) {
   if (!(mxn > 0)) return;
   const enMoneda = st.compras.length > 0, simbolo = (enMoneda ? st.moneda : "USDT") + "MXN";
   const r = parMXN[simbolo] || (parMXN[simbolo] = await cli.reglas(simbolo)), monto = Math.floor(mxn * 100) / 100;
-  if (monto < r.minNotional * 1.01) {
+  // Lo mínimo para el mercado: el mínimo de Binance y que alcance para al menos un paso de la moneda (si no, compraría 0).
+  const minimo = Math.max(r.minNotional, Math.max(+r.paso || 0, r.minQty || 0) * await cli.precio(simbolo) * 1.05) * 1.01;
+  if (monto < minimo) {
     // Muy poquito para el mercado: usa Convertir (acepta desde ~1 peso). Si falla, reintenta en una hora.
     if (monto < 1 || Date.now() - (st.convertirFallo || 0) < 3600e3) { if (mxn >= 1 && st.convertirMsg) st.aviso = st.convertirMsg; return; }
     try {
