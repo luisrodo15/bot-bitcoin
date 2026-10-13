@@ -57,7 +57,7 @@ let sen = null, graf = null;
 // Datos para la gráfica del panel: precio diario, EMAs y dónde habría comprado/vendido la estrategia en esos días.
 function armarGrafica(kv, fg) {
   const k = kv.map(v => +v[4]), serie = n => { const a = 2 / (n + 1), o = []; k.forEach((p, i) => o.push(i ? p * a + o[i - 1] * (1 - a) : p)); return o; };
-  const e20 = serie(20), e50 = serie(50), cod = cfg.codicia ?? Sen.DEF.codicia, mie = cfg.miedo ?? Sen.DEF.miedo, desde = Math.max(0, kv.length - 120), marcas = [];
+  const e20 = serie(20), e50 = serie(50), cod = cfg.codicia ?? Sen.DEF.codicia, mie = cfg.miedo ?? Sen.DEF.miedo, desde = Math.max(0, kv.length - 365), marcas = [];
   let en = false;
   for (let i = 50; i < kv.length; i++) {
     const f = fg.get(Math.floor(kv[i][0] / 864e5)); if (f == null) continue;
@@ -71,7 +71,7 @@ async function leerSenales(moneda) {
   const r1 = await fetch(API_INDICE, { signal: AbortSignal.timeout(15000) });
   if (!r1.ok) throw new Error("el índice de miedo y codicia respondió " + r1.status);
   const lista = (await r1.json()).data, d = lista[0], fg = new Map(lista.map(x => [Math.floor(+x.timestamp / 86400), +x.value]));
-  const r2 = await fetch(`${API}/api/v3/klines?symbol=${moneda}USDT&interval=1d&limit=300`, { signal: AbortSignal.timeout(15000) });
+  const r2 = await fetch(`${API}/api/v3/klines?symbol=${moneda}USDT&interval=1d&limit=500`, { signal: AbortSignal.timeout(15000) });
   if (!r2.ok) throw new Error("Binance respondió " + r2.status);
   const kv = (await r2.json()).filter(v => v[6] < Date.now()), k = kv.map(v => +v[4]); // solo velas diarias ya cerradas
   if (k.length < 60) throw new Error("llegaron pocas velas diarias");
@@ -323,34 +323,48 @@ const signo = x => (x >= 0 ? "+" : "−") + usd(Math.abs(x));
 const cuando = t => new Date(t).toLocaleString("es-MX", { timeZone: "America/Mexico_City", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 // Gráfica de líneas (SVG, sin librerías): precio diario de los últimos 120 días, EMA20/EMA50,
 // círculos donde la estrategia habría comprado/vendido y triángulos donde el bot compró/vendió de verdad.
-function grafica() {
+function grafica(N = 120) {
   if (!graf || !graf.dias.length) return "";
+  const dias = graf.dias.slice(-N);
   const W = 680, H = 300, L = 6, R = 58, T = 12, B = 24, ahora = Date.now(), p = st.ultimoPrecio;
-  const puntos = graf.dias.map(d => [d.t, d.c]).concat(p ? [[ahora, p]] : []);
-  const t0 = graf.dias[0].t, t1 = ahora, mias = st.trades.filter(t => t.t >= t0 && (t.tipo === "COMPRA" || t.tipo === "VENTA"));
-  const vals = graf.dias.flatMap(d => [d.c, d.e20, d.e50]).concat(p ? [p] : [], mias.map(t => t.precio));
+  const puntos = dias.map(d => [d.t, d.c]).concat(p ? [[ahora, p]] : []);
+  const t0 = dias[0].t, t1 = ahora, mias = st.trades.filter(t => t.t >= t0 && (t.tipo === "COMPRA" || t.tipo === "VENTA"));
+  const vals = dias.flatMap(d => [d.c, d.e20, d.e50]).concat(p ? [p] : [], mias.map(t => t.precio));
   let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * 0.08 || hi * 0.02; lo -= pad; hi += pad;
   const x = t => (L + (t - t0) / (t1 - t0) * (W - L - R)).toFixed(1), y = v => (T + (hi - v) / (hi - lo) * (H - T - B)).toFixed(1);
   const linea = (pts, color, ancho, extra = "") => `<polyline fill="none" stroke="${color}" stroke-width="${ancho}" stroke-linejoin="round" stroke-linecap="round" ${extra} points="${pts.map(([t, v]) => x(t) + "," + y(v)).join(" ")}"/>`;
   const dec = hi >= 1000 ? 0 : 2, rejilla = [0, 1, 2, 3].map(j => { const v = lo + (hi - lo) * (0.1 + 0.8 * j / 3); return `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#1d2c52"/><text x="${W - R + 6}" y="${+y(v) + 4}" fill="#8c9abb" font-size="11">${usd(v, dec)}</text>`; }).join("");
-  const meses = []; for (let d = new Date(t0); d <= new Date(t1); d.setUTCDate(d.getUTCDate() + 1)) if (d.getUTCDate() === 1) meses.push(new Date(d));
-  const etiquetas = meses.map(d => `<line x1="${x(+d)}" x2="${x(+d)}" y1="${T}" y2="${H - B}" stroke="#14213f"/><text x="${x(+d)}" y="${H - 7}" fill="#8c9abb" font-size="11" text-anchor="middle">${d.toLocaleString("es-MX", { month: "short", timeZone: "UTC" })}</text>`).join("");
-  const habria = graf.marcas.map(m => `<circle cx="${x(m.t)}" cy="${y(m.p)}" r="5" fill="#070d1c" stroke="${m.tipo === "COMPRA" ? "#2fd08a" : "#ff5d6c"}" stroke-width="2"/>`).join("");
+  const meses = []; for (let d = new Date(t0); d <= new Date(t1); d.setUTCDate(d.getUTCDate() + 1)) if (N > 60 ? d.getUTCDate() === 1 : N > 10 ? d.getUTCDay() === 1 : true) meses.push(new Date(d));
+  const etiquetas = meses.map(d => `<line x1="${x(+d)}" x2="${x(+d)}" y1="${T}" y2="${H - B}" stroke="#14213f"/><text x="${x(+d)}" y="${H - 7}" fill="#8c9abb" font-size="11" text-anchor="middle">${N > 60 ? d.toLocaleString("es-MX", { month: "short", timeZone: "UTC" }) : d.toLocaleString("es-MX", { day: "numeric", month: "short", timeZone: "UTC" })}</text>`).join("");
+  const habria = graf.marcas.filter(m => m.t >= t0).map(m => `<circle cx="${x(m.t)}" cy="${y(m.p)}" r="5" fill="#070d1c" stroke="${m.tipo === "COMPRA" ? "#2fd08a" : "#ff5d6c"}" stroke-width="2"/>`).join("");
   const reales = mias.map(t => { const cx = +x(t.t), cy = +y(t.precio), c = t.tipo === "COMPRA"; return `<path d="${c ? `M${cx} ${cy + 3}l-7 12h14z` : `M${cx} ${cy - 3}l-7 -12h14z`}" fill="${c ? "#2fd08a" : "#ff5d6c"}" stroke="#070d1c" stroke-width="1.5"/>`; }).join("");
   const ult = p ? `<circle cx="${x(ahora)}" cy="${y(p)}" r="4" fill="#f2b632"/><rect x="${W - R + 2}" y="${+y(p) - 9}" width="${R - 4}" height="18" rx="5" fill="#f2b632"/><text x="${W - R + 6}" y="${+y(p) + 4}" fill="#070d1c" font-size="11" font-weight="700">${usd(p, dec)}</text>` : "";
-  return `<div class="k" style="margin-bottom:12px"><div class="l">${st.moneda || cfg.moneda} · últimos 120 días</div>
-<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="Precio con compras y ventas">${rejilla}${etiquetas}
-${linea(graf.dias.map(d => [d.t, d.e50]), "#8c9abb", 1.2, 'stroke-dasharray="4 4"')}${linea(graf.dias.map(d => [d.t, d.e20]), "#5aa9ff", 1.4)}${linea(puntos, "#f2b632", 2.2)}${habria}${ult}${reales}</svg>
-<div class="n" style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px"><span><b style="color:#f2b632">━</b> precio</span><span><b style="color:#5aa9ff">━</b> EMA20</span><span><b style="color:#8c9abb">┅</b> EMA50</span><span><b class="up">▲</b>/<b class="down">▼</b> compra/venta del bot</span><span><b class="up">○</b>/<b class="down">○</b> dónde la estrategia habría comprado/vendido</span></div></div>`;
+  return `<svg data-g="${N}" ${N === 120 ? "" : 'style="display:none" '}viewBox="0 0 ${W} ${H}" class="gd" role="img" aria-label="Precio con compras y ventas">${rejilla}${etiquetas}
+${linea(dias.map(d => [d.t, d.e50]), "#8c9abb", 1.2, 'stroke-dasharray="4 4"')}${linea(dias.map(d => [d.t, d.e20]), "#5aa9ff", 1.4)}${linea(puntos, "#f2b632", 2.2)}${habria}${ult}${reales}</svg>`;
+}
+// Tarjeta con botones Semana / Mes / 4 meses / Año (cada día es un punto; el detalle de horas está en la gráfica en vivo).
+const RANGOS_D = [[7, "Semana"], [30, "Mes"], [120, "4 meses"], [365, "Año"]];
+function graficaDias() {
+  if (!graf || !graf.dias.length) return "";
+  return `<div class="k" style="margin-bottom:12px"><div class="l">${st.moneda || cfg.moneda} · precio por día</div>
+<div class="rg" id="rgd">${RANGOS_D.map(([n, t]) => `<button data-n="${n}"${n === 120 ? ' class="on"' : ""}>${t}</button>`).join("")}</div>
+${RANGOS_D.map(([n]) => grafica(n)).join("")}
+<div class="n" style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px"><span><b style="color:#f2b632">━</b> precio</span><span><b style="color:#5aa9ff">━</b> EMA20</span><span><b style="color:#8c9abb">┅</b> EMA50</span><span><b class="up">▲</b>/<b class="down">▼</b> compra/venta del bot</span><span><b class="up">○</b>/<b class="down">○</b> dónde la estrategia habría comprado/vendido</span></div></div>
+<script>(()=>{const b=document.querySelectorAll("#rgd button"),g=document.querySelectorAll("svg[data-g]");function v(n){b.forEach(x=>x.classList.toggle("on",x.dataset.n==n));g.forEach(x=>x.style.display=x.dataset.g==n?"block":"none");try{localStorage.setItem("rgd",n)}catch(e){}}
+b.forEach(x=>x.onclick=()=>v(x.dataset.n));let n=null;try{n=localStorage.getItem("rgd")}catch(e){}if(n&&[...b].some(x=>x.dataset.n==n))v(n);})();</script>`;
 }
 // Gráfica en vivo: el celular pide /vivo.json cada 5 segundos. El servidor consulta Binance (precio al momento
 // y velas de 1 minuto de las últimas 6 horas, guardadas un rato para no pedir de más) y le pone las líneas del bot.
-let cacheVivo = { t: 0, d: null }, cacheVelas = { t: 0, v: [] };
-async function vivo() {
-  const ahora = Date.now(); if (cacheVivo.d && ahora - cacheVivo.t < 3000) return cacheVivo.d;
-  const sym = `${st.moneda || cfg.moneda}USDT`;
-  if (ahora - cacheVelas.t > 30000) { const r = await fetch(`${API}/api/v3/klines?symbol=${sym}&interval=1m&limit=360`, { signal: AbortSignal.timeout(8000) });
-    if (r.ok) cacheVelas = { t: ahora, v: (await r.json()).map(k => [k[0], +k[4]]) }; }
+// Rangos: 6 horas (velas de 1 min), día (5 min), semana (1 h), mes (4 h), año (1 día).
+const RANGOS_V = { "6h": ["1m", 360, 30e3], dia: ["5m", 288, 60e3], semana: ["1h", 168, 300e3], mes: ["4h", 180, 600e3], "año": ["1d", 365, 1800e3] };
+let cacheVivo = {}, cacheVelas = {};
+async function vivo(rango) {
+  if (!RANGOS_V[rango]) rango = "6h";
+  const ahora = Date.now(), cv = cacheVivo[rango]; if (cv && ahora - cv.t < 3000) return cv.d;
+  const sym = `${st.moneda || cfg.moneda}USDT`, [iv, lim, dura] = RANGOS_V[rango], ve = cacheVelas[rango];
+  if (!ve || ahora - ve.t > dura) { const r = await fetch(`${API}/api/v3/klines?symbol=${sym}&interval=${iv}&limit=${lim}`, { signal: AbortSignal.timeout(8000) });
+    if (r.ok) cacheVelas[rango] = { t: ahora, v: (await r.json()).map(k => [k[0], +k[4]]) }; }
+  const velas = (cacheVelas[rango] || { v: [] }).v, desde = velas.length ? velas[0][0] : ahora - 6 * 36e5;
   let p = st.ultimoPrecio; try { const r = await fetch(`${API}/api/v3/ticker/price?symbol=${sym}`, { signal: AbortSignal.timeout(5000) }); if (r.ok) p = +(await r.json()).price; } catch (e) {}
   const MOV = +cfg.movimiento || 0, MOVS = +cfg.movimientoStop || 0, MOVB = +(cfg.movimientoBaja ?? cfg.movimiento) || 0, MOVZ = +(cfg.movimientoSube ?? cfg.movimiento) || 0;
   const lineas = [], compra = st.compras.length ? Math.max(...st.compras.map(c => c.precio)) : 0;
@@ -358,26 +372,29 @@ async function vivo() {
     if (st.movMax) { lineas.push({ n: "máximo", v: st.movMax, c: "#2fd08a" }); lineas.push({ n: "vende si baja a", v: st.movMax * (1 - MOVS / 100), c: "#ff5d6c" }); }
     else if (MOV) lineas.push({ n: "meta de venta", v: compra * (1 + MOV / 100), c: "#2fd08a" }); }
   else if (st.movVenta && MOV) { lineas.push({ n: "vendió", v: st.movVenta, c: "#8c9abb" }); lineas.push({ n: "recompra", v: st.movVenta * (1 - MOVB / 100), c: "#2fd08a" }); lineas.push({ n: "recompra si sube", v: st.movVenta * (1 + MOVZ / 100), c: "#5aa9ff" }); }
-  const ventas = st.trades.filter(t => t.t >= ahora - 6 * 36e5 && (t.tipo === "COMPRA" || t.tipo === "VENTA")).map(t => ({ t: t.t, p: t.precio, tipo: t.tipo }))
-    .concat((st.pesos || []).filter(x => x.t >= ahora - 6 * 36e5 && x.precio).map(x => ({ t: x.t, p: x.precio, tipo: "PESOS" })));
-  cacheVivo = { t: ahora, d: { t: ahora, p, moneda: st.moneda || cfg.moneda, puntos: cacheVelas.v.concat(p ? [[ahora, p]] : []), lineas, ops: ventas } };
-  return cacheVivo.d;
+  const ventas = st.trades.filter(t => t.t >= desde && (t.tipo === "COMPRA" || t.tipo === "VENTA")).map(t => ({ t: t.t, p: t.precio, tipo: t.tipo }))
+    .concat((st.pesos || []).filter(x => x.t >= desde && x.precio).map(x => ({ t: x.t, p: x.precio, tipo: "PESOS" })));
+  const d = { t: ahora, p, rango, moneda: st.moneda || cfg.moneda, puntos: velas.concat(p ? [[ahora, p]] : []), lineas, ops: ventas };
+  cacheVivo[rango] = { t: ahora, d }; return d;
 }
-const graficaVivo = () => `<div class="k" style="margin-bottom:12px"><div class="l">En vivo · últimas 6 horas</div><div class="v gold" id="vp">…</div><div class="n" id="vn">Conectando…</div>
+const graficaVivo = () => `<div class="k" style="margin-bottom:12px"><div class="l" id="vt">En vivo · últimas 6 horas</div>
+<div class="rg" id="rgv"><button data-r="6h" class="on">6 horas</button><button data-r="dia">Día</button><button data-r="semana">Semana</button><button data-r="mes">Mes</button><button data-r="año">Año</button></div><div class="v gold" id="vp">…</div><div class="n" id="vn">Conectando…</div>
 <svg id="vg" viewBox="0 0 680 260" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="Precio en vivo con las líneas del bot"></svg>
 <div class="n" style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px"><span><b class="up">▲</b>/<b class="down">▼</b> compra/venta del bot</span><span><b class="up">$</b> compra con tus pesos</span><span>líneas: precio de compra, meta y venta</span></div></div>
-<script>(()=>{const q=location.search,f=(x,d)=>Number(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
-async function pinta(){try{const r=await fetch("vivo.json"+q,{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json(),W=680,H=260,L=6,R=118,T=10,B=22;
+<script>(()=>{let R0="6h";const NOM={"6h":"últimas 6 horas",dia:"último día",semana:"última semana",mes:"último mes","año":"último año"},q=location.search,f=(x,d)=>Number(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+async function pinta(){try{const r=await fetch("vivo.json"+q+"&r="+encodeURIComponent(R0),{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json(),W=680,H=260,L=6,R=118,T=10,B=22;
 const P=d.puntos;if(!P.length)return;const t0=P[0][0],t1=d.t,vs=P.map(a=>a[1]).concat(d.lineas.map(l=>l.v));let lo=Math.min(...vs),hi=Math.max(...vs);const pad=(hi-lo)*.08||hi*.002;lo-=pad;hi+=pad;
 const x=t=>(L+(t-t0)/(t1-t0||1)*(W-L-R)).toFixed(1),y=v=>(T+(hi-v)/(hi-lo)*(H-T-B)).toFixed(1);let s="";
-for(let j=0;j<=6;j++){const t=t1-j*36e5;if(t<t0)break;s+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="#14213f"/><text x="'+x(t)+'" y="'+(H-6)+'" fill="#8c9abb" font-size="11" text-anchor="middle">'+new Date(t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City",hour:"numeric",minute:"2-digit"})+'</text>';}
+const PA={"6h":36e5,dia:4*36e5,semana:864e5,mes:7*864e5,"año":61*864e5}[d.rango]||36e5,ET=t=>d.rango==="6h"||d.rango==="dia"?new Date(t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City",hour:"numeric",minute:"2-digit"}):new Date(t).toLocaleDateString("es-MX",{timeZone:"America/Mexico_City",day:"numeric",month:"short"});
+for(let j=0;j<=7;j++){const t=t1-j*PA;if(t<t0)break;s+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="#14213f"/><text x="'+x(t)+'" y="'+(H-6)+'" fill="#8c9abb" font-size="11" text-anchor="middle">'+ET(t)+'</text>';}
 for(const l of d.lineas)s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(l.v)+'" y2="'+y(l.v)+'" stroke="'+l.c+'" stroke-dasharray="5 4" stroke-width="1.4"/><text x="'+(W-R+4)+'" y="'+(+y(l.v)-2)+'" fill="'+l.c+'" font-size="10.5">'+l.n+'</text><text x="'+(W-R+4)+'" y="'+(+y(l.v)+10)+'" fill="'+l.c+'" font-size="10.5">'+f(l.v,0)+'</text>';
 s+='<polyline fill="none" stroke="#f2b632" stroke-width="2" stroke-linejoin="round" points="'+P.map(a=>x(a[0])+","+y(a[1])).join(" ")+'"/>';
 for(const o of d.ops){const cx=+x(o.t),cy=+y(o.p),c=o.tipo==="COMPRA";if(o.tipo==="PESOS"){s+='<circle cx="'+cx+'" cy="'+cy+'" r="8" fill="#2fd08a" stroke="#070d1c" stroke-width="1.5"/><text x="'+cx+'" y="'+(cy+4)+'" fill="#070d1c" font-size="11" font-weight="700" text-anchor="middle">$</text>';continue;}s+='<path d="'+(c?"M"+cx+" "+(cy+3)+"l-7 12h14z":"M"+cx+" "+(cy-3)+"l-7 -12h14z")+'" fill="'+(c?"#2fd08a":"#ff5d6c")+'"/>';}
 s+='<circle cx="'+x(t1)+'" cy="'+y(d.p)+'" r="4.5" fill="#f2b632"/>';document.getElementById("vg").innerHTML=s;
 document.getElementById("vp").textContent=f(d.p,2)+" USDT";const m=d.lineas.find(l=>l.n==="meta de venta"||l.n==="vende si baja a"||l.n==="recompra");
 document.getElementById("vn").textContent="Actualizado "+new Date(d.t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City"})+(m?" · "+m.n+" "+f(m.v,0)+" ("+((m.v/d.p-1)*100>=0?"+":"")+((m.v/d.p-1)*100).toFixed(2)+"%)":"");}
-catch(e){document.getElementById("vn").textContent="Sin conexión, reintentando…";}}pinta();setInterval(pinta,5000);})();</script>`;
+catch(e){document.getElementById("vn").textContent="Sin conexión, reintentando…";}}const bv=document.querySelectorAll("#rgv button");function elige(r){R0=r;bv.forEach(x=>x.classList.toggle("on",x.dataset.r===r));document.getElementById("vt").textContent="En vivo · "+NOM[r];try{localStorage.setItem("rgv",r)}catch(e){}pinta();}
+bv.forEach(x=>x.onclick=()=>elige(x.dataset.r));let g=null;try{g=localStorage.getItem("rgv")}catch(e){}if(g&&NOM[g])elige(g);else pinta();setInterval(pinta,5000);})();</script>`;
 function pagina() {
   const p = st.ultimoPrecio || 0, total = st.usdt + st.btc * p + (st.usdtPasado || 0), dif = total - st.base, n = Bot.niveles(st, cfg);
   const abierto = st.compras.reduce((a, c) => a + c.btc * p, 0);
@@ -402,6 +419,7 @@ function pagina() {
   const filas = st.trades.slice(-50).reverse().map(t => `<tr><td>${cuando(t.t)}</td><td class="${t.tipo === "COMPRA" ? "up" : t.tipo === "VENTA" ? "down" : "gold"}">${t.tipo}</td><td>${usd(t.precio)}</td><td class="${t.ganancia == null ? "" : t.ganancia >= 0 ? "up" : "down"}">${t.ganancia == null ? "" : signo(t.ganancia)}</td></tr>`).join("");
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Bot Cripto</title><style>
 body{margin:0;background:#070d1c;color:#e7ecf7;font:14px/1.5 system-ui,sans-serif}.w{max-width:720px;margin:0 auto;padding:18px 16px}
+.rg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px}.rg button{background:#0f1a36;color:#8c9abb;border:1px solid #1d2c52;border-radius:8px;padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer}.rg button.on{background:#f2b632;color:#070d1c;border-color:#f2b632;font-weight:700}.gd{width:100%;height:auto;margin-top:6px}
 h1{font-size:20px;margin:0 0 4px}h1 span{color:#f2b632}.sub{color:#8c9abb;font-size:12.5px;margin:0 0 14px}
 .b{border:1px dashed #f2b632;background:rgba(242,182,50,.14);border-radius:12px;padding:9px 12px;font-size:13px;margin-bottom:12px}.b b{color:#f2b632}
 .e{border:1px solid #ff5d6c;background:rgba(255,93,108,.1);border-radius:12px;padding:9px 12px;font-size:13px;margin-bottom:12px}
@@ -423,7 +441,7 @@ ${REAL ? `<div class="k"><div class="l">USDT libre en Spot</div><div class="v">$
 <div class="k" style="margin-bottom:12px"><div class="l">Ajuste automático ${cfg.autoajuste ? `(cada ${cfg.ajusteHoras || 6} horas)` : "(apagado)"}</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("") || `<div class="n">Todavía no hace su primera revisión.</div>`}</div>`}
 ${tarjetasBtc}${SENT && st.ajustes.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
 ${cfg.gananciasA === "BTC" ? `<div class="k" style="margin-bottom:12px"><div class="l">Bitcoin juntado con las ganancias</div><div class="v gold">${(st.btcJuntado || 0).toFixed(8)} BTC</div><div class="n">Se compró con ${usd(st.usdtPasado || 0)} USDT de ganancias${(st.porPasar || 0) >= 0.01 ? ` · apartado para la próxima compra: ${usd(st.porPasar)} USDT (Binance pide 5.5 mínimo)` : ""}. Este Bitcoin no se vende.</div></div>` : ""}
-${SENT ? graficaVivo() + grafica() : ""}
+${SENT ? graficaVivo() + graficaDias() : ""}
 <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Precio</th><th>Ganancia</th></tr></thead><tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#8c9abb">Todavía no hay operaciones</td></tr>`}</tbody></table>
 <p class="n">Ganancia hecha: <span class="${st.ganado >= 0 ? "up" : "down"}">${signo(st.ganado)} USDT</span> en ${st.trades.filter(t => t.ganancia != null).length} ventas.</p>
 </div></body></html>`;
@@ -433,7 +451,7 @@ http.createServer((req, res) => {
   // Panel de solo lectura: sin la clave no muestra nada. No acepta acciones ni claves de Binance.
   const dada = Buffer.from(u.searchParams.get("clave") || ""), buena = Buffer.from(String(cfg.clavePanel));
   if (req.method !== "GET" || dada.length !== buena.length || !crypto.timingSafeEqual(dada, buena)) { res.writeHead(403, { "content-type": "text/plain; charset=utf-8" }); return res.end("Falta la clave: abre la dirección con ?clave=TU_CLAVE"); }
-  if (u.pathname === "/vivo.json") { vivo().then(d => { res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify(d)); })
+  if (u.pathname === "/vivo.json") { vivo(u.searchParams.get("r")).then(d => { res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify(d)); })
     .catch(e => { res.writeHead(502, { "content-type": "application/json" }); res.end(JSON.stringify({ error: String(e.message || e) })); }); return; }
   if (u.pathname === "/registro.csv") { res.writeHead(200, { "content-type": "text/csv; charset=utf-8" }); return res.end(fs.existsSync(F_CSV) ? fs.readFileSync(F_CSV) : ""); }
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(pagina());
