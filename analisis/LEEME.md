@@ -127,3 +127,7 @@ Repetición semanal.js/semchk.js con datos al 13-oct: la actual sigue entre las 
 ## soporte.js, video "Spot Trading sin riesgo" (2026-10-13)
 Del video (gráficas y su hoja de operaciones): compra con orden límite en soporte, vende en resistencia +3% a +9%, sin stop, 1h/4h con EMAs, RSI y volumen. Clon: compra cuando la vela de 1h toca el mínimo de los últimos 3/7/14 días, vende a +2/3/5/8%, nunca en pérdida, con y sin filtro del bot. (Los datos de 1 minuto no traen volumen, así que la confirmación de volumen no hizo nada.)
 Último año BTC: la mejor da +3% de BTC y -31% en USDT. Compró en el primer soporte y se quedó atorada hasta 368 días sin vender (0-1 ventas en la 1a mitad). En la 2a mitad (subida) hace 3-11 ventas pero queda entre -1% y +3% de BTC. El bot actual da +66.9% de BTC con ~25 ventas. No se adopta.
+
+## soporte4h.js, video mejorado en 4h (2026-10-13, lo pidió el usuario)
+Soporte = mínimo de las últimas 6/12/30/60 velas de 4h, compra límite ahí, vende +1.2/2/3/5%, stop 0/1/2/4% bajo el soporte, con y sin filtro del bot (128 combinaciones).
+Mejor con filtro: +48.9% de BTC pero solo 3 ventas al año. Con 20 o más ventas al año el máximo es +15.8%: la mitad de las salidas son stops con pérdida, y la 2a mitad sale en -11%. Sin stop se queda atorada (0 ventas en la 1a mitad). Ninguna combinación gana en la 2a mitad, donde todas salen negativas salvo +5.5% con 15 ventas (esa misma pierde -7.6% en la 1a). Bot actual: +66.9%, 51 ops. No se adopta.
