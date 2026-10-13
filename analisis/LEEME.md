@@ -118,3 +118,8 @@ Ninguna da 9/9; el máximo es 8/9 y la actual (+1.2/0.3/-2/+2.4) ya lo logra con
 
 ## grid.js, recompra de arriba (2026-10-13)
 Con -2% abajo y distintas recompras arriba, BTC último año: +2.4% (actual) +66.9%, 25 ventas | +3% +41.5% | +4% +57.5% | +5% +50.0% | sin recompra arriba +38.3%, 4 ventas. Se queda +2.4%.
+
+## atr.js, meta según volatilidad (2026-10-13)
+Meta, stop y recompra como fracción del ATR14 diario (ATR medio BTC 3.45%). 24 combinaciones.
+La mejor (meta 0.5×ATR, stop 0.15×ATR, recompra -0.7×ATR) da +67.8% BTC pero 36 ops/año contra 51 de la actual (+66.9%), y sus vecinas caen a +55% o menos. No es robusta y da menos ventas. No se cambia.
+Repetición semanal.js/semchk.js con datos al 13-oct: la actual sigue entre las mejores (+66.9%, 1a mitad +68.1%, 2a mitad -0.7%).
