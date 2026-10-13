@@ -83,3 +83,9 @@ recomprar si sigue subiendo (antes era igual a `movimiento`). Elegida: +1.2% con
 Estrategia de ChatGPT: 4h EMA50>EMA200, 1h precio>EMA200, rebote en EMA20 de 1h, TP +1.5% / SL -0.8%, una operación a la vez.
 BTC último año (precio -26.5%): USDT -30.1%, cantidad de BTC -4.8%, 107 ops (29 ganadas, 78 perdidas), 58% de semanas con menos BTC.
 Variantes (TP 1.2-2%, SL 0.8-1.5%) entre -6% y +1.3% de BTC. Muy por debajo de la del bot (+67% BTC). No se usa.
+
+## semsl.js y stop8.js solo BTC (2026-10-13): "stop loss siempre" (idea de Grok)
+Stop fijo desde la compra sobre el modo semanal actual (+1.2/stop 0.3/-2/+2.4), BTC último año, cantidad de BTC:
+sin stop +66.9% | 1% +25.6% | 2% +52.9% | 3% +60.7% | 5% +62.6% | 8% +69.2% (solo 1 stop, suerte).
+stop8.js (stop móvil sobre la regla diaria desde 2018, BTC): sin stop 2018-22 +777%, 2023-hoy +196%; con cualquier stop 5-25% peor en ambos periodos.
+"Riesgo 1% por operación" con ~7 USDT = menos de 5 USDT por orden: Binance no lo permite. No se cambia: la salida por EMA20<EMA50 o miedo<=25 ya es el stop.
