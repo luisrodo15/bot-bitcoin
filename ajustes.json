@@ -13,5 +13,6 @@
   "movimiento": 1.2,
   "movimientoStop": 0.3,
   "movimientoBaja": 2,
-  "movimientoSube": 2.4
+  "movimientoSube": 2.4,
+  "comprarConMXN": true
 }

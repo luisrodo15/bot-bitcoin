@@ -23,9 +23,9 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 // Estas opciones solo valen mientras estén en ajustes.json; si se quitan de ahí, se apagan (no se quedan guardadas en config.json).
-for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube"]) if (AJ[k] === undefined) delete cfg[k];
+for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN"]) if (AJ[k] === undefined) delete cfg[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
@@ -127,6 +127,7 @@ async function revisarReal() {
   st.usdtLibre = libre("USDT"); st.baseLibre = libre(par.base);
   st.error = null; st.aviso = null;
   if (TODO) adoptar(precio, ahora);
+  if (TODO && cfg.comprarConMXN) try { await usarPesos(libre("MXN"), ahora); } catch (e) { st.error = "No se pudieron usar tus pesos: " + e.message; }
   // Decide con la misma lógica de la simulación (sobre una copia) y luego lo hace de verdad.
   const copia = JSON.parse(JSON.stringify(st)); copia.usdt = 1e9; copia.trades = [];
   const decisiones = await decidir(copia, cfg, precio, ahora, mon);
@@ -144,6 +145,21 @@ async function revisarReal() {
   if (!TODO && st.ganado <= -Math.abs(cfg.perdidaMax) && !st.pausado) st.pausado = `Pausado: la pérdida total llegó a ${st.ganado.toFixed(2)} USDT (tu tope es ${cfg.perdidaMax}).`;
 }
 // Toma como "compra abierta" todo lo que haya en Spot de la moneda. Si depositas o retiras, se ajusta solo.
+// comprarConMXN: los pesos que deposites en Spot los usa el bot. Si tiene BTC, compra BTC con ellos (par BTC/MXN) y al
+// minuto siguiente adoptar() los suma con precio promedio; si está en USDT (vendió y espera recomprar), los pasa a USDT
+// (par USDT/MXN) para que la siguiente compra sea con todo. Si son menos del mínimo de Binance, los junta.
+const parMXN = {};
+async function usarPesos(mxn, ahora) {
+  if (!(mxn > 0)) return;
+  const enMoneda = st.compras.length > 0, simbolo = (enMoneda ? st.moneda : "USDT") + "MXN";
+  const r = parMXN[simbolo] || (parMXN[simbolo] = await cli.reglas(simbolo)), monto = Math.floor(mxn * 100) / 100;
+  if (monto < r.minNotional * 1.01) { if (mxn >= 1) st.aviso = `Tienes ${mxn.toFixed(2)} pesos en Spot. Binance pide al menos ${r.minNotional} MXN por compra; los junto hasta llegar.`; return; }
+  const o = await cli.orden({ symbol: simbolo, side: "BUY", quoteOrderQty: String(monto) });
+  const neto = +o.executedQty - sumaComision(o.fills, r.base), pagado = +o.cummulativeQuoteQty;
+  if (!enMoneda) { st.usdtBot = +((st.usdtBot || 0) + neto).toFixed(8); st.usdtLibre += neto; }
+  anotarAjuste(`Compré ${+neto.toFixed(8)} ${r.base} con ${pagado.toFixed(2)} pesos que depositaste${enMoneda ? "" : " (los guardo en USDT para la siguiente compra de " + st.moneda + ")"}.`);
+  console.log(new Date().toISOString(), "PESOS", pagado, "MXN ->", neto, r.base);
+}
 function adoptar(precio, ahora) {
   const valor = st.baseLibre * precio; let c = st.compras[0];
   st.polvo = 0; st.polvoCosto = 0;
