@@ -23,9 +23,9 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 // Estas opciones solo valen mientras estén en ajustes.json; si se quitan de ahí, se apagan (no se quedan guardadas en config.json).
-for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos"]) if (AJ[k] === undefined) delete cfg[k];
+for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT"]) if (AJ[k] === undefined) delete cfg[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
@@ -127,6 +127,7 @@ async function revisarReal() {
   st.usdtLibre = libre("USDT"); st.baseLibre = libre(par.base);
   st.error = null; st.aviso = null;
   if (TODO) adoptar(precio, ahora);
+  if (TODO && cfg.usarUSDT) try { await usarUSDT(precio, ahora); } catch (e) { st.error = "No se pudo usar tu USDT: " + e.message; }
   if (TODO && cfg.comprarConMXN) try { const bnbPesos = await cuidarBNB(libre("BNB"), libre("MXN")); await usarPesos(libre("MXN") - bnbPesos, ahora); } catch (e) { st.error = "No se pudieron usar tus pesos: " + e.message; }
   // Decide con la misma lógica de la simulación (sobre una copia) y luego lo hace de verdad.
   const copia = JSON.parse(JSON.stringify(st)); copia.usdt = 1e9; copia.trades = [];
@@ -193,6 +194,30 @@ async function usarPesos(mxn, ahora) {
   anotarAjuste(`Compré ${neto.toFixed(8)} ${r.base} con ${pagado.toFixed(2)} pesos que depositaste${enMoneda ? "" : " (los guardo en USDT para la siguiente compra de " + st.moneda + ")"}.`);
   console.log(new Date().toISOString(), "PESOS", pagado, "MXN ->", neto, r.base);
 }
+// usarUSDT: el USDT que pongas en Spot también lo usa el bot (nunca toca USDC).
+// - Si está en USDT (vendió y espera recomprar, o espera la señal), lo suma para que la siguiente compra sea con todo.
+// - Si tiene BTC, compra más BTC con ese USDT cuando el precio baja movimientoBaja% (2%) bajo su precio promedio,
+//   y adoptar() lo suma con precio promedio. Así la meta de venta queda más cerca.
+// "aporte" = USDT tuyo que entró: no cuenta como BTC ganado por el bot.
+async function usarUSDT(precio, ahora) {
+  if ((st.usdtBot || 0) > st.usdtLibre + 0.01) st.usdtBot = +st.usdtLibre.toFixed(8); // si sacaste USDT
+  const extra = Math.floor((st.usdtLibre - (st.usdtBot || 0)) * 100) / 100;
+  if (!(extra >= 1)) return;
+  if (!st.compras.length) {
+    st.usdtBot = +((st.usdtBot || 0) + extra).toFixed(8); st.aportePend = +((st.aportePend || 0) + extra).toFixed(8);
+    anotarAjuste(`Tomé ${extra.toFixed(2)} USDT de tu Spot: los uso en la siguiente compra de ${st.moneda}${st.movVenta ? " (la recompra)" : ""}.`); return;
+  }
+  const baja = +(cfg.movimientoBaja ?? cfg.movimiento ?? 2) || 2, prom = st.compras[0].precio, meta = prom * (1 - baja / 100);
+  if (extra < par.minNotional * 1.1) { st.aviso = `Tienes ${extra.toFixed(2)} USDT en Spot: Binance pide al menos ${par.minNotional} USDT por compra; los junto hasta llegar.`; return; }
+  if (precio > meta) { st.aviso = `Tienes ${extra.toFixed(2)} USDT en Spot: compro ${st.moneda} con ellos si baja a ${usd(meta, 2)} (-${baja}% de tu precio promedio ${usd(prom, 2)}).`; return; }
+  const monto = Math.floor(extra * 0.998 * 100) / 100;
+  const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
+  const qty = +o.executedQty, quote = +o.cummulativeQuoteQty, pr = quote / qty, recibido = qty - sumaComision(o.fills, par.base), fee = await comisionUSDT(o, par.base, pr);
+  st.usdtLibre -= quote; st.baseLibre += recibido; adoptar(pr, ahora);
+  const t = { t: ahora, tipo: "COMPRA", real: true, precio: pr, btc: +recibido.toFixed(10), usdt: quote, comision: +fee.toFixed(8), aporte: quote, motivo: `Compré con tu USDT: el precio bajó ${baja}% bajo tu promedio`, orden: o.orderId };
+  st.trades.push(t); anotar(t); anotarAjuste(`Compré ${recibido.toFixed(8)} ${st.moneda} con ${quote.toFixed(2)} USDT tuyos a ${usd(pr, 2)} (bajó ${baja}% bajo tu promedio). Tu nuevo precio promedio es ${usd(st.compras[0].precio, 2)}.`);
+  console.log(new Date().toISOString(), "COMPRA CON USDT TUYO", qty, "a", pr);
+}
 function adoptar(precio, ahora) {
   const valor = st.baseLibre * precio; let c = st.compras[0];
   st.polvo = 0; st.polvoCosto = 0;
@@ -222,7 +247,8 @@ async function comprarReal(h, precio, ahora) {
   st.polvo = +((st.polvo || 0) + recibido - lote).toFixed(10); st.polvoCosto = +((st.polvoCosto || 0) + pagado * (1 - lote / recibido)).toFixed(10);
   const c = { precio: prom, btc: lote, costo: +(pagado * lote / recibido).toFixed(8), t: ahora, orden: o.orderId };
   st.compras.push(c); st.usdtLibre -= quote; if (TODO) st.usdtBot = Math.max(0, (st.usdtBot || 0) - quote);
-  const t = { t: ahora, tipo: "COMPRA", real: true, precio: prom, btc: lote, recibido: +recibido.toFixed(10), sobra: TODO ? +(st.usdtBot || 0).toFixed(8) : undefined, usdt: quote, comision: +fee.toFixed(8), motivo: h.motivo, orden: o.orderId };
+  const t = { t: ahora, tipo: "COMPRA", real: true, precio: prom, btc: lote, recibido: +recibido.toFixed(10), sobra: TODO ? +(st.usdtBot || 0).toFixed(8) : undefined, usdt: quote, comision: +fee.toFixed(8), aporte: st.aportePend || undefined, motivo: h.motivo, orden: o.orderId };
+  st.aportePend = 0;
   st.trades.push(t); anotar(t); console.log(new Date().toISOString(), "COMPRA REAL", par.simbolo, lote, "a", prom);
 }
 async function venderReal(h, precio, ahora) {
@@ -404,18 +430,18 @@ function pagina() {
   const MOV = +cfg.movimiento || 0, MOVS = +cfg.movimientoStop || 0, MOVB = +(cfg.movimientoBaja ?? cfg.movimiento) || 0; const MOVZ = +(cfg.movimientoSube ?? cfg.movimiento) || 0;
   const sg = st.senales, cod = cfg.codicia ?? Sen.DEF.codicia, mie = cfg.miedo ?? Sen.DEF.miedo;
   const esperaSent = st.pausado ? "En pausa: " + st.pausado : !sg ? "Leyendo señales…"
-    : st.compras.length ? `Está manejando tu ${st.moneda} (el que ya tenías en Spot, no compró nada).${MOV ? (st.movMax ? ` Ya pasó +${MOV}% (máximo ${usd(st.movMax, 2)}): vende si baja a ${usd(st.movMax * (1 - MOVS / 100), 2)}.` : ` Al llegar a ${usd(Math.max(...st.compras.map(c => c.precio)) * (1 + MOV / 100), 2)} (+${MOV}%)${MOVS ? ` sigue al precio y vende cuando baje ${MOVS}% desde el máximo` : " vende con ganancia"}.`) : ""} Vende todo si el índice baja a ${mie} o la EMA20 cae abajo de la EMA50.`
+    : st.compras.length ? `Está manejando tu ${st.moneda} de Spot.${cfg.usarUSDT ? " Si pones USDT en Spot, compra más cuando baje 2% bajo tu promedio." : ""}${MOV ? (st.movMax ? ` Ya pasó +${MOV}% (máximo ${usd(st.movMax, 2)}): vende si baja a ${usd(st.movMax * (1 - MOVS / 100), 2)}.` : ` Al llegar a ${usd(Math.max(...st.compras.map(c => c.precio)) * (1 + MOV / 100), 2)} (+${MOV}%)${MOVS ? ` sigue al precio y vende cuando baje ${MOVS}% desde el máximo` : " vende con ganancia"}.`) : ""} Vende todo si el índice baja a ${mie} o la EMA20 cae abajo de la EMA50.`
     : st.movVenta ? `En USDT tras vender con ganancia. Recompra a ${usd(st.movVenta * (1 - MOVB / 100), 2)} (-${MOVB}%) o a ${usd(st.movVenta * (1 + MOVZ / 100), 2)} (+${MOVZ}%) si sigue subiendo.`
     : `En USDT. Compra cuando el índice llegue a ${cod} y la EMA20 esté arriba de la EMA50.`;
   // Lo que le importa al usuario: cuánto BTC tiene y cuánto BTC le ha ganado el bot (cada venta comparada con su recompra).
   let vendido = null, ganBtc = 0, vueltas = 0;
   for (const t of st.trades) { if (!t.real || t.t < Date.parse("2026-10-12T21:00:00Z") || t.tipo === "A BITCOIN") continue;
-    if (t.tipo !== "COMPRA") vendido = (vendido || 0) + t.btc; else if (vendido != null) { ganBtc += (t.recibido ?? t.btc) + (t.sobra || 0) / t.precio - vendido; // Binance compra en pasos de 0.00001 BTC: lo que no alcanza se queda en USDT para la siguiente
+    if (t.tipo !== "COMPRA") vendido = (vendido || 0) + t.btc; else if (vendido != null) { ganBtc += (t.recibido ?? t.btc) + (t.sobra || 0) / t.precio - (t.aporte || 0) / t.precio - vendido; // Binance compra en pasos de 0.00001 BTC: lo que no alcanza se queda en USDT para la siguiente
       vendido = null; vueltas++; } }
   const tuyo = st.compras.reduce((a, c) => a + c.btc, 0) + (st.polvo || 0), enUsdt = TODO ? st.usdtBot || 0 : 0;
   const metaMov = MOV && st.compras.length && !st.movMax ? Math.max(...st.compras.map(c => c.precio)) * (1 + MOV / 100) : 0;
   const tarjetasBtc = SENT && REAL ? `<div class="g"><div class="k"><div class="l">Tu ${st.moneda} con el bot</div><div class="v gold">${tuyo ? tuyo.toFixed(8) : p && enUsdt ? (enUsdt / p).toFixed(8) : "0"}</div><div class="n">${tuyo ? `≈ ${usd(tuyo * p, 2)} USDT${enUsdt >= 0.01 ? ` + ${usd(enUsdt, 2)} USDT sobrantes para la siguiente compra` : ""}` : enUsdt ? `Ahora en USDT: ${usd(enUsdt, 2)} (equivale a eso en ${st.moneda})` : ""}${metaMov && p ? ` · falta ${((metaMov / p - 1) * 100).toFixed(1)}% para la meta de venta` : ""}</div></div>
-<div class="k"><div class="l">${st.moneda} ganado por el bot</div><div class="v ${ganBtc >= 0 ? "up" : "down"}">${ganBtc >= 0 ? "+" : ""}${ganBtc.toFixed(8)}</div><div class="n">${vueltas ? `en ${vueltas} vuelta${vueltas > 1 ? "s" : ""} de vender caro y recomprar barato` : "Aún sin vueltas completas (vender y recomprar)"}${vendido != null && enUsdt && p ? ` · si recomprara ahora: ${enUsdt / p - vendido >= 0 ? "+" : ""}${(enUsdt / p - vendido).toFixed(8)}` : ""}</div></div></div>` : "";
+<div class="k"><div class="l">${st.moneda} ganado por el bot</div><div class="v ${ganBtc >= 0 ? "up" : "down"}">${ganBtc >= 0 ? "+" : ""}${ganBtc.toFixed(8)}</div><div class="n">${vueltas ? `en ${vueltas} vuelta${vueltas > 1 ? "s" : ""} de vender caro y recomprar barato` : "Aún sin vueltas completas (vender y recomprar)"}${vendido != null && enUsdt && p ? ` · si recomprara ahora: ${(enUsdt - (st.aportePend || 0)) / p - vendido >= 0 ? "+" : ""}${((enUsdt - (st.aportePend || 0)) / p - vendido).toFixed(8)}` : ""}</div></div></div>` : "";
   const filas = st.trades.slice(-50).reverse().map(t => `<tr><td>${cuando(t.t)}</td><td class="${t.tipo === "COMPRA" ? "up" : t.tipo === "VENTA" ? "down" : "gold"}">${t.tipo}</td><td>${usd(t.precio)}</td><td class="${t.ganancia == null ? "" : t.ganancia >= 0 ? "up" : "down"}">${t.ganancia == null ? "" : signo(t.ganancia)}</td></tr>`).join("");
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Bot Cripto</title><style>
 body{margin:0;background:#070d1c;color:#e7ecf7;font:14px/1.5 system-ui,sans-serif}.w{max-width:720px;margin:0 auto;padding:18px 16px}

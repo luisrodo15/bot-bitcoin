@@ -14,5 +14,6 @@
   "movimientoStop": 0.3,
   "movimientoBaja": 2,
   "movimientoSube": 2.4,
-  "comprarConMXN": false
+  "comprarConMXN": false,
+  "usarUSDT": true
 }
