@@ -387,7 +387,7 @@ function pagina() {
   const MOV = +cfg.movimiento || 0, MOVS = +cfg.movimientoStop || 0, MOVB = +(cfg.movimientoBaja ?? cfg.movimiento) || 0; const MOVZ = +(cfg.movimientoSube ?? cfg.movimiento) || 0;
   const sg = st.senales, cod = cfg.codicia ?? Sen.DEF.codicia, mie = cfg.miedo ?? Sen.DEF.miedo;
   const esperaSent = st.pausado ? "En pausa: " + st.pausado : !sg ? "Leyendo señales…"
-    : st.compras.length ? `Tiene ${st.moneda} comprado.${MOV ? (st.movMax ? ` Ya pasó +${MOV}% (máximo ${usd(st.movMax, 2)}): vende si baja a ${usd(st.movMax * (1 - MOVS / 100), 2)}.` : ` Al llegar a ${usd(Math.max(...st.compras.map(c => c.precio)) * (1 + MOV / 100), 2)} (+${MOV}%)${MOVS ? ` sigue al precio y vende cuando baje ${MOVS}% desde el máximo` : " vende con ganancia"}.`) : ""} Vende todo si el índice baja a ${mie} o la EMA20 cae abajo de la EMA50.`
+    : st.compras.length ? `Está manejando tu ${st.moneda} (el que ya tenías en Spot, no compró nada).${MOV ? (st.movMax ? ` Ya pasó +${MOV}% (máximo ${usd(st.movMax, 2)}): vende si baja a ${usd(st.movMax * (1 - MOVS / 100), 2)}.` : ` Al llegar a ${usd(Math.max(...st.compras.map(c => c.precio)) * (1 + MOV / 100), 2)} (+${MOV}%)${MOVS ? ` sigue al precio y vende cuando baje ${MOVS}% desde el máximo` : " vende con ganancia"}.`) : ""} Vende todo si el índice baja a ${mie} o la EMA20 cae abajo de la EMA50.`
     : st.movVenta ? `En USDT tras vender con ganancia. Recompra a ${usd(st.movVenta * (1 - MOVB / 100), 2)} (-${MOVB}%) o a ${usd(st.movVenta * (1 + MOVZ / 100), 2)} (+${MOVZ}%) si sigue subiendo.`
     : `En USDT. Compra cuando el índice llegue a ${cod} y la EMA20 esté arriba de la EMA50.`;
   // Lo que le importa al usuario: cuánto BTC tiene y cuánto BTC le ha ganado el bot (cada venta comparada con su recompra).
