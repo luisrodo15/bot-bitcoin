@@ -131,3 +131,7 @@ Del video (gráficas y su hoja de operaciones): compra con orden límite en sopo
 ## soporte4h.js, video mejorado en 4h (2026-10-13, lo pidió el usuario)
 Soporte = mínimo de las últimas 6/12/30/60 velas de 4h, compra límite ahí, vende +1.2/2/3/5%, stop 0/1/2/4% bajo el soporte, con y sin filtro del bot (128 combinaciones).
 Mejor con filtro: +48.9% de BTC pero solo 3 ventas al año. Con 20 o más ventas al año el máximo es +15.8%: la mitad de las salidas son stops con pérdida, y la 2a mitad sale en -11%. Sin stop se queda atorada (0 ventas en la 1a mitad). Ninguna combinación gana en la 2a mitad, donde todas salen negativas salvo +5.5% con 15 ventas (esa misma pierde -7.6% en la 1a). Bot actual: +66.9%, 51 ops. No se adopta.
+
+## soportemes.js, soporte/resistencia del último mes + entrada en 4h (2026-10-13)
+Como en el video (Bybit 1 mes + TradingView 4h): soporte = mínimo de 15/30 días, vende en la resistencia (máximo del mes) o +3/5/8%, stops 0-4%, con y sin filtro.
+Toca el soporte del mes muy pocas veces: 0-3 ventas al año. Mejor +48.9% de BTC (con filtro, 1 venta), y la 2a mitad negativa en todas (-7% a -16%). Con 20+ ventas: +11.7%, 44 stops. No se adopta.
