@@ -101,3 +101,7 @@ Ni con +0.3% se llega a 365 ops/año porque la regla de tendencia deja al bot fu
 ## sem3.js (2026-10-13): "al menos 3 por semana" (~150 ops/año)
 Solo 3 combinaciones llegan a 140+ ops/año, todas +0.3% con seguimiento 0.2%: BTC +39.5% a +39.9% (2a mitad -9% a -10%), USDT +2.7%; 47-51% de semanas con menos BTC.
 Su venta mínima (+0.1%) queda por debajo de las comisiones (0.15% ida y vuelta). Actual: +66.9%. No se cambia sin que el usuario lo pida.
+
+## Ojo: "ops/año" cuenta compras Y ventas (2026-10-13)
+Actual 51 ops/año ≈ 25 ventas con ganancia al año ≈ 1 cada 2 semanas. Lo más seguido (+0.3%, 149-162 ops) ≈ 75-80 ventas ≈ 1.5 por semana, con BTC +40%.
+2 ganancias por semana (~100 ventas) no se alcanza con ninguna combinación probada. Sin el filtro de tendencia el bot se queda atorado en bajadas: menos ops y BTC -4% a +2%.
