@@ -111,3 +111,7 @@ Actual 51 ops/año ≈ 25 ventas con ganancia al año ≈ 1 cada 2 semanas. Lo m
 - Desde 21-ago-2026 (tendencia buena): actual +1.2% -> 22 ventas, todas ganadoras, venta en 6 de 7 semanas. +0.6% -> 4 de 7. +0.3% -> 57 de 66 ganadoras, 4 de 7.
 - Dividir en lotes (20-50% con meta chica +0.3/0.5/0.6, resto actual): BTC +50% a +63% (peor que +66.9%) y no sube las semanas con venta (15-17%).
 Conclusión: con tendencia buena la configuración actual ya da venta casi cada semana; en tendencia mala, operar pierde. No se cambia.
+
+## grid.js (2026-10-13): combinación que da venta ganadora en MÁS semanas con tendencia buena
+375 combinaciones (+0.6 a +1.5, stop 0.1-0.5, recompra -0.5 a -2.5, sube x0.5/1/2). Último año hubo 9 semanas con tendencia buena.
+Ninguna da 9/9; el máximo es 8/9 y la actual (+1.2/0.3/-2/+2.4) ya lo logra con BTC +66.9%. +1.5/0.4/-2.5/+3 da 8/9 y +68.1% (diferencia de ruido). No se cambia.
