@@ -149,3 +149,8 @@ RSI 67-71 con m 0.3-0.5% da +74.4% de BTC (2a mitad +3.8%) contra +66.9%, con la
 BTC +19.8% / +0.7% / +18.9%, 51 ops · BNB +19.0% / +4.7% / +13.7%, 67 ops · XRP +3.7%, 42 ops · SOL -2.4%, 49 ops · ETH -3.3%, 47 ops.
 Solo comprar y guardar: BTC -28%, BNB -27%, ETH -41%, SOL -49%, XRP -53%.
 BTC sigue siendo el mejor. BNB gana casi igual en dólares con más operaciones (posible segunda moneda para tener más ventas). ETH, que es la moneda del video, sale peor.
+
+## freno.js, no aguantar la caída después de recomprar (2026-10-13, lo pidió el usuario)
+a) Recompra "con rebote": tras -2% no compra de inmediato, sigue el mínimo y compra al rebotar 0.2-1.5%. b) Stop 2/3/5% solo después de una recompra de abajo. c) Ambos.
+BTC último año: actual +66.9% | rebote 0.3% +65.1% | rebote 0.5% +48.5% | rebote 1% +52.5% | stop 2% +51.0% | stop 3% +41.4% | stop 5% +64.3% | rebote 0.5% + stop 3% +59.3% (2a mitad -15%).
+Todas pierden: las bajadas de -2% casi siempre rebotan, y el stop vende en el piso. No se cambia; la salida por tendencia/miedo sigue siendo el freno.
