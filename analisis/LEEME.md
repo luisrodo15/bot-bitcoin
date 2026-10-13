@@ -66,3 +66,8 @@ Conclusión: se queda como está (vende todo, recompra −3% o +3%).
 - BTC: actual (+3 stop1 −3/+3) +61.4%; las 18 variantes chicas dan +38% a +53% y el 2º semestre entre −1.4% y −11%.
 - BNB: actual +93.2% vs 53–70%. ETH: actual +60.1%, solo +1 stop0.3 −2/+1 da 68.8% (126 op/año), pero falla en BTC y BNB.
 Las comisiones y el ruido se comen las ganancias. Se queda +3%.
+
+## Reserva de USDT para comprar en bajadas — 2026-10-13
+`reserva.js`: comprar ya vs. esperar a que baje 2/3/5% (máx. 3/7/14 días, si no, compra igual). BTC extra promedio:
+2018-22 entre −0.3% y +0.1%; 2023-hoy entre −0.8% y −0.2%; último año +0.1% a +0.4%. Esperar gana 50–85% de las veces
+pero pierde más cuando BTC sube sin parar. En promedio da lo mismo: no se agrega. Mejor que el usuario compre BTC directo.
