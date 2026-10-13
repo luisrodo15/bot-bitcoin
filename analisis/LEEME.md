@@ -135,3 +135,7 @@ Mejor con filtro: +48.9% de BTC pero solo 3 ventas al año. Con 20 o más ventas
 ## soportemes.js, soporte/resistencia del último mes + entrada en 4h (2026-10-13)
 Como en el video (Bybit 1 mes + TradingView 4h): soporte = mínimo de 15/30 días, vende en la resistencia (máximo del mes) o +3/5/8%, stops 0-4%, con y sin filtro.
 Toca el soporte del mes muy pocas veces: 0-3 ventas al año. Mejor +48.9% de BTC (con filtro, 1 venta), y la 2a mitad negativa en todas (-7% a -16%). Con 20+ ventas: +11.7%, 44 stops. No se adopta.
+
+## cuatroh.js, búsqueda amplia en velas de 4h (2026-10-13, lo pidió el usuario)
+Dentro de la regla del bot, vender/recomprar con señales de 4h: RSI (alto 65/70/75, bajo 35-50), Bollinger (k 1.5/2, recompra en banda baja o media), cierre bajo/sobre EMA 9/20/50; ganancia mínima 0.5/1.2/2%, recompra arriba 0/3%. 159 combinaciones.
+Mejor: Bollinger k2 recompra en la media, +62.7% de BTC con 5 ventas (2a mitad -3.5%). Ninguna llega a 20 ventas al año. Solo la regla sin 4h: +57.7%. Bot actual (minuto, +1.2%/0.3%/-2%/+2.4%): +66.9%, ~25 ventas. 4h decide muy lento para ventas cortas. No se adopta.
