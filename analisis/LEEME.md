@@ -97,3 +97,7 @@ Mismo modo semanal, BTC último año, cantidad de BTC: diaria EMA20/50 (actual) 
 ## semdia.js (2026-10-13): "mínimo una operación por día"
 Movimientos muy chicos (+0.3 a +0.8%, stop 0.1-0.2%, recompra -0.3 a -1%), BTC último año: el mejor +50.0% BTC con 71 ops/año (2a mitad -6.7%); actual +66.9% con 51.
 Ni con +0.3% se llega a 365 ops/año porque la regla de tendencia deja al bot fuera muchos días. Más operaciones = menos BTC. No se cambia.
+
+## sem3.js (2026-10-13): "al menos 3 por semana" (~150 ops/año)
+Solo 3 combinaciones llegan a 140+ ops/año, todas +0.3% con seguimiento 0.2%: BTC +39.5% a +39.9% (2a mitad -9% a -10%), USDT +2.7%; 47-51% de semanas con menos BTC.
+Su venta mínima (+0.1%) queda por debajo de las comisiones (0.15% ida y vuelta). Actual: +66.9%. No se cambia sin que el usuario lo pida.
