@@ -324,6 +324,39 @@ function grafica() {
 ${linea(graf.dias.map(d => [d.t, d.e50]), "#8c9abb", 1.2, 'stroke-dasharray="4 4"')}${linea(graf.dias.map(d => [d.t, d.e20]), "#5aa9ff", 1.4)}${linea(puntos, "#f2b632", 2.2)}${habria}${ult}${reales}</svg>
 <div class="n" style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px"><span><b style="color:#f2b632">━</b> precio</span><span><b style="color:#5aa9ff">━</b> EMA20</span><span><b style="color:#8c9abb">┅</b> EMA50</span><span><b class="up">▲</b>/<b class="down">▼</b> compra/venta del bot</span><span><b class="up">○</b>/<b class="down">○</b> dónde la estrategia habría comprado/vendido</span></div></div>`;
 }
+// Gráfica en vivo: el celular pide /vivo.json cada 5 segundos. El servidor consulta Binance (precio al momento
+// y velas de 1 minuto de las últimas 6 horas, guardadas un rato para no pedir de más) y le pone las líneas del bot.
+let cacheVivo = { t: 0, d: null }, cacheVelas = { t: 0, v: [] };
+async function vivo() {
+  const ahora = Date.now(); if (cacheVivo.d && ahora - cacheVivo.t < 3000) return cacheVivo.d;
+  const sym = `${st.moneda || cfg.moneda}USDT`;
+  if (ahora - cacheVelas.t > 30000) { const r = await fetch(`${API}/api/v3/klines?symbol=${sym}&interval=1m&limit=360`, { signal: AbortSignal.timeout(8000) });
+    if (r.ok) cacheVelas = { t: ahora, v: (await r.json()).map(k => [k[0], +k[4]]) }; }
+  let p = st.ultimoPrecio; try { const r = await fetch(`${API}/api/v3/ticker/price?symbol=${sym}`, { signal: AbortSignal.timeout(5000) }); if (r.ok) p = +(await r.json()).price; } catch (e) {}
+  const MOV = +cfg.movimiento || 0, MOVS = +cfg.movimientoStop || 0, MOVB = +(cfg.movimientoBaja ?? cfg.movimiento) || 0, MOVZ = +(cfg.movimientoSube ?? cfg.movimiento) || 0;
+  const lineas = [], compra = st.compras.length ? Math.max(...st.compras.map(c => c.precio)) : 0;
+  if (compra) { lineas.push({ n: "compró", v: compra, c: "#8c9abb" });
+    if (st.movMax) { lineas.push({ n: "máximo", v: st.movMax, c: "#2fd08a" }); lineas.push({ n: "vende si baja a", v: st.movMax * (1 - MOVS / 100), c: "#ff5d6c" }); }
+    else if (MOV) lineas.push({ n: "meta de venta", v: compra * (1 + MOV / 100), c: "#2fd08a" }); }
+  else if (st.movVenta && MOV) { lineas.push({ n: "vendió", v: st.movVenta, c: "#8c9abb" }); lineas.push({ n: "recompra", v: st.movVenta * (1 - MOVB / 100), c: "#2fd08a" }); lineas.push({ n: "recompra si sube", v: st.movVenta * (1 + MOVZ / 100), c: "#5aa9ff" }); }
+  const ventas = st.trades.filter(t => t.t >= ahora - 6 * 36e5 && (t.tipo === "COMPRA" || t.tipo === "VENTA")).map(t => ({ t: t.t, p: t.precio, tipo: t.tipo }));
+  cacheVivo = { t: ahora, d: { t: ahora, p, moneda: st.moneda || cfg.moneda, puntos: cacheVelas.v.concat(p ? [[ahora, p]] : []), lineas, ops: ventas } };
+  return cacheVivo.d;
+}
+const graficaVivo = () => `<div class="k" style="margin-bottom:12px"><div class="l">En vivo · últimas 6 horas</div><div class="v gold" id="vp">…</div><div class="n" id="vn">Conectando…</div>
+<svg id="vg" viewBox="0 0 680 260" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="Precio en vivo con las líneas del bot"></svg></div>
+<script>(()=>{const q=location.search,f=(x,d)=>Number(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+async function pinta(){try{const r=await fetch("vivo.json"+q,{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json(),W=680,H=260,L=6,R=118,T=10,B=22;
+const P=d.puntos;if(!P.length)return;const t0=P[0][0],t1=d.t,vs=P.map(a=>a[1]).concat(d.lineas.map(l=>l.v));let lo=Math.min(...vs),hi=Math.max(...vs);const pad=(hi-lo)*.08||hi*.002;lo-=pad;hi+=pad;
+const x=t=>(L+(t-t0)/(t1-t0||1)*(W-L-R)).toFixed(1),y=v=>(T+(hi-v)/(hi-lo)*(H-T-B)).toFixed(1);let s="";
+for(let j=0;j<=6;j++){const t=t1-j*36e5;if(t<t0)break;s+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="#14213f"/><text x="'+x(t)+'" y="'+(H-6)+'" fill="#8c9abb" font-size="11" text-anchor="middle">'+new Date(t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City",hour:"numeric",minute:"2-digit"})+'</text>';}
+for(const l of d.lineas)s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(l.v)+'" y2="'+y(l.v)+'" stroke="'+l.c+'" stroke-dasharray="5 4" stroke-width="1.4"/><text x="'+(W-R+4)+'" y="'+(+y(l.v)-2)+'" fill="'+l.c+'" font-size="10.5">'+l.n+'</text><text x="'+(W-R+4)+'" y="'+(+y(l.v)+10)+'" fill="'+l.c+'" font-size="10.5">'+f(l.v,0)+'</text>';
+s+='<polyline fill="none" stroke="#f2b632" stroke-width="2" stroke-linejoin="round" points="'+P.map(a=>x(a[0])+","+y(a[1])).join(" ")+'"/>';
+for(const o of d.ops){const cx=+x(o.t),cy=+y(o.p),c=o.tipo==="COMPRA";s+='<path d="'+(c?"M"+cx+" "+(cy+3)+"l-7 12h14z":"M"+cx+" "+(cy-3)+"l-7 -12h14z")+'" fill="'+(c?"#2fd08a":"#ff5d6c")+'"/>';}
+s+='<circle cx="'+x(t1)+'" cy="'+y(d.p)+'" r="4.5" fill="#f2b632"/>';document.getElementById("vg").innerHTML=s;
+document.getElementById("vp").textContent=f(d.p,2)+" USDT";const m=d.lineas.find(l=>l.n==="meta de venta"||l.n==="vende si baja a"||l.n==="recompra");
+document.getElementById("vn").textContent="Actualizado "+new Date(d.t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City"})+(m?" · "+m.n+" "+f(m.v,0)+" ("+((m.v/d.p-1)*100>=0?"+":"")+((m.v/d.p-1)*100).toFixed(2)+"%)":"");}
+catch(e){document.getElementById("vn").textContent="Sin conexión, reintentando…";}}pinta();setInterval(pinta,5000);})();</script>`;
 function pagina() {
   const p = st.ultimoPrecio || 0, total = st.usdt + st.btc * p + (st.usdtPasado || 0), dif = total - st.base, n = Bot.niveles(st, cfg);
   const abierto = st.compras.reduce((a, c) => a + c.btc * p, 0);
@@ -355,7 +388,7 @@ h1{font-size:20px;margin:0 0 4px}h1 span{color:#f2b632}.sub{color:#8c9abb;font-s
 .l{color:#8c9abb;font-size:11px;text-transform:uppercase;letter-spacing:.07em}.v{font-size:19px;font-weight:600;margin-top:2px}.n{color:#8c9abb;font-size:12px}
 table{width:100%;border-collapse:collapse;font-size:13px;background:#0d1730;border:1px solid #1d2c52;border-radius:14px}th,td{padding:7px 8px;border-bottom:1px solid #1d2c52;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{color:#8c9abb;font-weight:500;font-size:11px}
 .up{color:#2fd08a}.down{color:#ff5d6c}.gold{color:#f2b632}</style></head><body><div class="w">
-<h1>Bot <span>Cripto</span></h1><p class="sub">Funcionando 24/7 en el servidor · revisado ${st.ultimaRevision ? cuando(st.ultimaRevision) : "…"} · se actualiza cada minuto</p>
+<h1>Bot <span>Cripto</span></h1><p class="sub">Funcionando 24/7 en el servidor · revisado ${st.ultimaRevision ? cuando(st.ultimaRevision) : "…"} · revisa el precio cada minuto · la gráfica en vivo se mueve cada 5 segundos</p>
 ${REAL ? `<div class="e"><b>DINERO REAL.</b> ${TODO ? `Maneja todos tus ${st.moneda} de Spot: ${+cfg.movimiento ? `vende caro (+${cfg.movimiento}%${+cfg.movimientoStop ? ` y siguiendo el precio` : ``}) y recompra más barato (-${cfg.movimientoBaja ?? cfg.movimiento}%) para juntar más ${st.moneda}; si la tendencia se voltea, lo pasa a USDT para protegerlo.` : `los pasa a USDT con miedo o tendencia de bajada y los recompra con codicia y tendencia de subida.`}` : `Compra y vende ${st.moneda} de verdad en tu Binance Spot, solo con USDT y solo vende lo que él compró.`}</div>`
   : `<div class="b"><b>MODO SIMULACIÓN.</b> Dinero ficticio con precios reales de Binance.${cfg.real ? " Para pasar a dinero real falta poner la llave en el servidor." : ""}</div>`}
 ${alerta() ? `<div class="e"><b>ALERTA POR NOTICIAS.</b> ${alerta().motivo}. El bot vendió y no compra hasta el ${cuando(Date.parse(alerta().hasta))}</div>` : ""}${st.error ? `<div class="e">${st.error}</div>` : ""}${st.aviso ? `<div class="b">${st.aviso}</div>` : ""}
@@ -369,7 +402,7 @@ ${REAL ? `<div class="k"><div class="l">USDT libre en Spot</div><div class="v">$
 <div class="k" style="margin-bottom:12px"><div class="l">Ajuste automático ${cfg.autoajuste ? `(cada ${cfg.ajusteHoras || 6} horas)` : "(apagado)"}</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("") || `<div class="n">Todavía no hace su primera revisión.</div>`}</div>`}
 ${tarjetasBtc}${SENT && st.ajustes.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
 ${cfg.gananciasA === "BTC" ? `<div class="k" style="margin-bottom:12px"><div class="l">Bitcoin juntado con las ganancias</div><div class="v gold">${(st.btcJuntado || 0).toFixed(8)} BTC</div><div class="n">Se compró con ${usd(st.usdtPasado || 0)} USDT de ganancias${(st.porPasar || 0) >= 0.01 ? ` · apartado para la próxima compra: ${usd(st.porPasar)} USDT (Binance pide 5.5 mínimo)` : ""}. Este Bitcoin no se vende.</div></div>` : ""}
-${SENT ? grafica() : ""}
+${SENT ? graficaVivo() + grafica() : ""}
 <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Precio</th><th>Ganancia</th></tr></thead><tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#8c9abb">Todavía no hay operaciones</td></tr>`}</tbody></table>
 <p class="n">Ganancia hecha: <span class="${st.ganado >= 0 ? "up" : "down"}">${signo(st.ganado)} USDT</span> en ${st.trades.filter(t => t.ganancia != null).length} ventas.</p>
 </div></body></html>`;
@@ -379,6 +412,8 @@ http.createServer((req, res) => {
   // Panel de solo lectura: sin la clave no muestra nada. No acepta acciones ni claves de Binance.
   const dada = Buffer.from(u.searchParams.get("clave") || ""), buena = Buffer.from(String(cfg.clavePanel));
   if (req.method !== "GET" || dada.length !== buena.length || !crypto.timingSafeEqual(dada, buena)) { res.writeHead(403, { "content-type": "text/plain; charset=utf-8" }); return res.end("Falta la clave: abre la dirección con ?clave=TU_CLAVE"); }
+  if (u.pathname === "/vivo.json") { vivo().then(d => { res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify(d)); })
+    .catch(e => { res.writeHead(502, { "content-type": "application/json" }); res.end(JSON.stringify({ error: String(e.message || e) })); }); return; }
   if (u.pathname === "/registro.csv") { res.writeHead(200, { "content-type": "text/csv; charset=utf-8" }); return res.end(fs.existsSync(F_CSV) ? fs.readFileSync(F_CSV) : ""); }
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(pagina());
 }).listen(cfg.puerto, () => console.log(`Bot Cripto en ${REAL ? "DINERO REAL" : "simulación"}. Panel: http://IP-DEL-SERVIDOR:${cfg.puerto}/?clave=${cfg.clavePanel}`));
