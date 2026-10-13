@@ -139,3 +139,7 @@ Toca el soporte del mes muy pocas veces: 0-3 ventas al año. Mejor +48.9% de BTC
 ## cuatroh.js, búsqueda amplia en velas de 4h (2026-10-13, lo pidió el usuario)
 Dentro de la regla del bot, vender/recomprar con señales de 4h: RSI (alto 65/70/75, bajo 35-50), Bollinger (k 1.5/2, recompra en banda baja o media), cierre bajo/sobre EMA 9/20/50; ganancia mínima 0.5/1.2/2%, recompra arriba 0/3%. 159 combinaciones.
 Mejor: Bollinger k2 recompra en la media, +62.7% de BTC con 5 ventas (2a mitad -3.5%). Ninguna llega a 20 ventas al año. Solo la regla sin 4h: +57.7%. Bot actual (minuto, +1.2%/0.3%/-2%/+2.4%): +66.9%, ~25 ventas. 4h decide muy lento para ventas cortas. No se adopta.
+
+## hibrido4h.js, bot actual + RSI de 4h (2026-10-13)
+Al bot actual se le suma: vende si RSI 4h >= A con ganancia >= m, y/o recompra antes si RSI 4h <= B bajo el precio de venta.
+RSI 67-71 con m 0.3-0.5% da +74.4% de BTC (2a mitad +3.8%) contra +66.9%, con las mismas 51 ops: es UNA sola venta distinta que cambió el camino. RSI 65 o 72-75 caen a +56.9%, y m >= 0.8% queda igual que el actual. La recompra por RSI no ayuda (45 baja a +52.6%). Frágil, no se adopta; vigilar en la revisión diaria.
