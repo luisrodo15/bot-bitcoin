@@ -89,3 +89,7 @@ Stop fijo desde la compra sobre el modo semanal actual (+1.2/stop 0.3/-2/+2.4), 
 sin stop +66.9% | 1% +25.6% | 2% +52.9% | 3% +60.7% | 5% +62.6% | 8% +69.2% (solo 1 stop, suerte).
 stop8.js (stop móvil sobre la regla diaria desde 2018, BTC): sin stop 2018-22 +777%, 2023-hoy +196%; con cualquier stop 5-25% peor en ambos periodos.
 "Riesgo 1% por operación" con ~7 USDT = menos de 5 USDT por orden: Binance no lo permite. No se cambia: la salida por EMA20<EMA50 o miedo<=25 ya es el stop.
+
+## sem4h.js (2026-10-13): tendencia en velas de 4 horas en vez de diaria
+Mismo modo semanal, BTC último año, cantidad de BTC: diaria EMA20/50 (actual) +66.9% | 4h EMA20/50 +41.4% (2a mitad -9.3%) | 4h EMA50/200 +56.0% | 4h EMA30/90 +34.2% (2a mitad -11.2%) | 4h EMA120/300 (= diaria) +66.9%.
+4h da señales falsas que voltean seguido. Se queda la diaria.
