@@ -154,3 +154,8 @@ BTC sigue siendo el mejor. BNB gana casi igual en dólares con más operaciones 
 a) Recompra "con rebote": tras -2% no compra de inmediato, sigue el mínimo y compra al rebotar 0.2-1.5%. b) Stop 2/3/5% solo después de una recompra de abajo. c) Ambos.
 BTC último año: actual +66.9% | rebote 0.3% +65.1% | rebote 0.5% +48.5% | rebote 1% +52.5% | stop 2% +51.0% | stop 3% +41.4% | stop 5% +64.3% | rebote 0.5% + stop 3% +59.3% (2a mitad -15%).
 Todas pierden: las bajadas de -2% casi siempre rebotan, y el stop vende en el piso. No se cambia; la salida por tendencia/miedo sigue siendo el freno.
+
+## brusco.js, movimientos bruscos de 1 hora (revisión diaria 2026-10-14)
+Sobre el modo actual: recompra inmediata si cae 1-2.5% en 60 min (bajo la venta) y/o venta inmediata si sube 1-2% en 60 min con ganancia >= 0.5-0.8%.
+BTC último año: actual +66.9% (1a mitad +59.7%, 2a mitad +4.5%) | caída 2% +58.5% | caída 1% +49.3% | pico 1.5% +53.0% | ambos +43.8%. Todas peor y con menos ventas. No se cambia.
+Repetición: actual sigue entre las mejores; hibrido4h (RSI 4h 67-71) sigue dando +74.4%, pero sus vecinos dan +56.9% (frágil, no se activa).
