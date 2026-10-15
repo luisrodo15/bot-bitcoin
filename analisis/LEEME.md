@@ -159,3 +159,8 @@ Todas pierden: las bajadas de -2% casi siempre rebotan, y el stop vende en el pi
 Sobre el modo actual: recompra inmediata si cae 1-2.5% en 60 min (bajo la venta) y/o venta inmediata si sube 1-2% en 60 min con ganancia >= 0.5-0.8%.
 BTC último año: actual +66.9% (1a mitad +59.7%, 2a mitad +4.5%) | caída 2% +58.5% | caída 1% +49.3% | pico 1.5% +53.0% | ambos +43.8%. Todas peor y con menos ventas. No se cambia.
 Repetición: actual sigue entre las mejores; hibrido4h (RSI 4h 67-71) sigue dando +74.4%, pero sus vecinos dan +56.9% (frágil, no se activa).
+
+## 2026-10-15: futuros (pedido del usuario)
+- futuros.js re-corrido: corto 1x cuando la tendencia es de bajada solo gana en años de bajada (BTC último año +23% vs +8% spot; 2023-hoy +5% vs +194%; 2020-22 +73% vs +296%).
+- Cobro de funding (BTC spot + corto 1x igual): último año +3.4% sobre lo cubierto (2024 12%, 2025 5%, 2026 2.2%), meses negativos feb-abr 2026; necesita el doble de capital y congela el BTC. No conviene.
+- cortoespera.js: el bot actual + corto 1x en futuros SOLO mientras espera recomprar (abre al vender, cierra al recomprar a −2% o +2.4%, o si sale la tendencia). Comisión futuros 0.05%/lado, sin funding. En BTC: +87.7% vs +66.9% (mitades +69.0/+11.1 vs +59.7/+4.5). Mejora en 9 de 9 configuraciones vecinas. Solo 1 año de datos de minuto. Bloqueos: mínimo de orden en futuros (~100 USDT en BTC, por confirmar), llave solo spot.
