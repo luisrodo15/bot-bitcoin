@@ -31,6 +31,12 @@ jobs:
             awk -F, '$1 ~ /^[0-9]+$/ { t=$1; if (t > 1e14) t=int(t/1000); print t","$2","$3","$4","$5 }' tmp/$S.csv | sort -t, -k1,1n -u > out/$S-1d.csv
             echo "$S $(wc -l < out/$S-1d.csv) dias"
           done
+          # Velas de 4 horas de BTC desde 2018 (para probar estrategias de 4h con varios años).
+          : > tmp/b4.csv
+          for m in $MESES; do curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/4h/BTCUSDT-4h-$m.zip" && unzip -p tmp/z.zip >> tmp/b4.csv || true; done
+          for d in $DIAS; do curl -sfL -o tmp/z.zip "https://data.binance.vision/data/spot/daily/klines/BTCUSDT/4h/BTCUSDT-4h-$d.zip" && unzip -p tmp/z.zip >> tmp/b4.csv || true; done
+          awk -F, '$1 ~ /^[0-9]+$/ { t=$1; if (t > 1e14) t=int(t/1000); print t","$2","$3","$4","$5 }' tmp/b4.csv | sort -t, -k1,1n -u > out/BTCUSDT-4h.csv
+          echo "BTC 4h $(wc -l < out/BTCUSDT-4h.csv) velas"
       - name: Guardar en la rama diarios
         run: |
           cd out
