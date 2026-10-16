@@ -126,6 +126,7 @@ async function revisarReal() {
   const cta = await cli.cuenta(), libre = a => +((cta.balances || []).find(b => b.asset === a) || { free: 0 }).free;
   st.usdtLibre = libre("USDT"); st.baseLibre = libre(par.base);
   st.error = null; st.aviso = null;
+  await tasaMXN(ahora); if (TODO) await prepararAportes();
   if (TODO) adoptar(precio, ahora);
   if (TODO && cfg.usarUSDT) try { await usarUSDT(precio, ahora); } catch (e) { st.error = "No se pudo usar tu USDT: " + e.message; }
   if (TODO && cfg.comprarConMXN) try { const bnbPesos = await cuidarBNB(libre("BNB"), libre("MXN")); await usarPesos(libre("MXN") - bnbPesos, ahora); } catch (e) { st.error = "No se pudieron usar tus pesos: " + e.message; }
@@ -200,11 +201,11 @@ async function usarPesos(mxn, ahora) {
 //   y adoptar() lo suma con precio promedio. Así la meta de venta queda más cerca.
 // "aporte" = USDT tuyo que entró: no cuenta como BTC ganado por el bot.
 async function usarUSDT(precio, ahora) {
-  if ((st.usdtBot || 0) > st.usdtLibre + 0.01) st.usdtBot = +st.usdtLibre.toFixed(8); // si sacaste USDT
+  if ((st.usdtBot || 0) > st.usdtLibre + 0.01) { aportar(st.usdtLibre - st.usdtBot, "USDT que sacaste"); st.usdtBot = +st.usdtLibre.toFixed(8); } // si sacaste USDT
   const extra = Math.floor((st.usdtLibre - (st.usdtBot || 0)) * 100) / 100;
   if (!(extra >= 1)) return;
   if (!st.compras.length) {
-    st.usdtBot = +((st.usdtBot || 0) + extra).toFixed(8); st.aportePend = +((st.aportePend || 0) + extra).toFixed(8);
+    st.usdtBot = +((st.usdtBot || 0) + extra).toFixed(8); st.aportePend = +((st.aportePend || 0) + extra).toFixed(8); aportar(extra, "USDT que pusiste");
     anotarAjuste(`Tomé ${extra.toFixed(2)} USDT de tu Spot: los uso en la siguiente compra de ${st.moneda}${st.movVenta ? " (la recompra)" : ""}.`); return;
   }
   const baja = +(cfg.movimientoBaja ?? cfg.movimiento ?? 2) || 2, prom = st.compras[0].precio, meta = prom * (1 - baja / 100);
@@ -218,12 +219,25 @@ async function usarUSDT(precio, ahora) {
   st.trades.push(t); anotar(t); anotarAjuste(`Compré ${recibido.toFixed(8)} ${st.moneda} con ${quote.toFixed(2)} USDT tuyos a ${usd(pr, 2)} (bajó ${baja}% bajo tu promedio). Tu nuevo precio promedio es ${usd(st.compras[0].precio, 2)}.`);
   console.log(new Date().toISOString(), "COMPRA CON USDT TUYO", qty, "a", pr);
 }
+// Pesos: lo que has puesto en el bot (cada aporte con el tipo de cambio de ese momento) contra lo que vale ahora.
+async function tasaMXN(ahora) { if (!st.mxnT || ahora - st.mxnT > 300e3) try { st.mxn = await cli.precio("USDTMXN"); st.mxnT = ahora; } catch (e) {} return st.mxn; }
+function aportar(usdt, motivo) { if (!st.aportes || !(Math.abs(usdt) >= 0.01)) return; st.aportes.push({ t: Date.now(), usdt: +usdt.toFixed(4), mxn: st.mxn ? +(usdt * st.mxn).toFixed(2) : 0, motivo }); }
+async function prepararAportes() {
+  if (st.aportes) return;
+  // El bot empezó con dinero real en BTC el 12-oct 21:00 UTC con 0.00008393 BTC (6.96 USDT); después, los USDT que pusiste.
+  const inicio = Date.parse("2026-10-12T21:00:00Z"), L = [{ t: inicio, usdt: 6.96, motivo: "bitcoin con el que empezó el bot" }];
+  for (const t of st.trades) if (t.real && t.t >= inicio && t.aporte > 0) L.push({ t: t.t, usdt: t.aporte, motivo: "USDT que pusiste" });
+  if (st.aportePend > 0) L.push({ t: Date.now(), usdt: st.aportePend, motivo: "USDT que pusiste" });
+  for (const a of L) { let r = 0; try { const k = await (await fetch(`${API}/api/v3/klines?symbol=USDTMXN&interval=1h&startTime=${a.t - 36e5}&limit=1`, { signal: AbortSignal.timeout(8000) })).json(); r = +k[0][4]; } catch (e) {}
+    a.mxn = +(a.usdt * (r || st.mxn || 0)).toFixed(2); }
+  if (L.every(a => a.mxn > 0)) st.aportes = L;
+}
 function adoptar(precio, ahora) {
-  const valor = st.baseLibre * precio; let c = st.compras[0];
+  const valor = st.baseLibre * precio, polvo = st.polvo || 0; let c = st.compras[0];
   st.polvo = 0; st.polvoCosto = 0;
   if (valor >= par.minNotional) {
-    if (!c) { st.compras = [{ precio, btc: st.baseLibre, costo: valor, t: ahora, adoptado: true }]; anotarAjuste(`Tomé ${st.baseLibre} ${par.base} de tu Spot para manejarlos (valen ${valor.toFixed(2)} USDT).`); }
-    else if (Math.abs(c.btc - st.baseLibre) > 1e-8) { c.costo = st.baseLibre > c.btc ? c.costo + (st.baseLibre - c.btc) * precio : c.costo * st.baseLibre / c.btc; if (st.baseLibre > c.btc) c.precio = c.costo / st.baseLibre; c.btc = st.baseLibre; } // si depositas más, la meta de +3% se calcula sobre el precio promedio
+    if (!c) { st.compras = [{ precio, btc: st.baseLibre, costo: valor, t: ahora, adoptado: true }]; aportar(valor, "bitcoin que pusiste en Spot"); anotarAjuste(`Tomé ${st.baseLibre} ${par.base} de tu Spot para manejarlos (valen ${valor.toFixed(2)} USDT).`); }
+    else if (Math.abs(c.btc - st.baseLibre) > 1e-8) { const dv = (st.baseLibre - c.btc - polvo) * precio; if (Math.abs(dv) >= 1) aportar(dv, dv > 0 ? "bitcoin que pusiste en Spot" : "bitcoin que sacaste"); c.costo = st.baseLibre > c.btc ? c.costo + (st.baseLibre - c.btc) * precio : c.costo * st.baseLibre / c.btc; if (st.baseLibre > c.btc) c.precio = c.costo / st.baseLibre; c.btc = st.baseLibre; } // si depositas más, la meta de +3% se calcula sobre el precio promedio
   } else {
     st.compras = [];
     if (valor > 1) st.aviso = `Tus ${st.baseLibre} ${par.base} en Spot valen ${valor.toFixed(2)} USDT; Binance pide al menos ${par.minNotional} USDT para venderlos.`;
@@ -365,7 +379,8 @@ function grafica(N = 120) {
   const habria = graf.marcas.filter(m => m.t >= t0).map(m => `<circle cx="${x(m.t)}" cy="${y(m.p)}" r="5" fill="#070d1c" stroke="${m.tipo === "COMPRA" ? "#2fd08a" : "#ff5d6c"}" stroke-width="2"/>`).join("");
   const reales = mias.map(t => { const cx = +x(t.t), cy = +y(t.precio), c = t.tipo === "COMPRA"; return `<path d="${c ? `M${cx} ${cy + 3}l-7 12h14z` : `M${cx} ${cy - 3}l-7 -12h14z`}" fill="${c ? "#2fd08a" : "#ff5d6c"}" stroke="#070d1c" stroke-width="1.5"/>`; }).join("");
   const ult = p ? `<circle cx="${x(ahora)}" cy="${y(p)}" r="4" fill="#f2b632"/><rect x="${W - R + 2}" y="${+y(p) - 9}" width="${R - 4}" height="18" rx="5" fill="#f2b632"/><text x="${W - R + 6}" y="${+y(p) + 4}" fill="#070d1c" font-size="11" font-weight="700">${usd(p, dec)}</text>` : "";
-  return `<svg data-g="${N}" ${N === 120 ? "" : 'style="display:none" '}viewBox="0 0 ${W} ${H}" class="gd" role="img" aria-label="Precio con compras y ventas">${rejilla}${etiquetas}
+  const area = `<defs><linearGradient id="ga${N}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2b632" stop-opacity=".28"/><stop offset="1" stop-color="#f2b632" stop-opacity="0"/></linearGradient></defs><polygon fill="url(#ga${N})" points="${x(puntos[0][0])},${H - B} ${puntos.map(([t, v]) => x(t) + "," + y(v)).join(" ")} ${x(puntos.at(-1)[0])},${H - B}"/>`;
+  return `<svg data-g="${N}" ${N === 120 ? "" : 'style="display:none" '}viewBox="0 0 ${W} ${H}" class="gd" role="img" aria-label="Precio con compras y ventas">${rejilla}${etiquetas}${area}
 ${linea(dias.map(d => [d.t, d.e50]), "#8c9abb", 1.2, 'stroke-dasharray="4 4"')}${linea(dias.map(d => [d.t, d.e20]), "#5aa9ff", 1.4)}${linea(puntos, "#f2b632", 2.2)}${habria}${ult}${reales}</svg>`;
 }
 // Tarjeta con botones Semana / Mes / 4 meses / Año (cada día es un punto; el detalle de horas está en la gráfica en vivo).
@@ -408,16 +423,24 @@ const graficaVivo = () => `<div class="k" style="margin-bottom:12px"><div class=
 <svg id="vg" viewBox="0 0 680 260" style="width:100%;height:auto;display:block;margin-top:6px" role="img" aria-label="Precio en vivo con las líneas del bot"></svg>
 <div class="n" style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px"><span><b class="up">▲</b>/<b class="down">▼</b> compra/venta del bot</span><span><b class="up">$</b> compra con tus pesos</span><span>líneas: precio de compra, meta y venta</span></div></div>
 <script>(()=>{let R0="6h";const NOM={"6h":"últimas 6 horas",dia:"último día",semana:"última semana",mes:"último mes","año":"último año"},q=location.search,f=(x,d)=>Number(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
-async function pinta(){try{const r=await fetch("vivo.json"+q+"&r="+encodeURIComponent(R0),{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json(),W=680,H=260,L=6,R=118,T=10,B=22;
-const P=d.puntos;if(!P.length)return;const t0=P[0][0],t1=d.t,vs=P.map(a=>a[1]).concat(d.lineas.map(l=>l.v));let lo=Math.min(...vs),hi=Math.max(...vs);const pad=(hi-lo)*.08||hi*.002;lo-=pad;hi+=pad;
-const x=t=>(L+(t-t0)/(t1-t0||1)*(W-L-R)).toFixed(1),y=v=>(T+(hi-v)/(hi-lo)*(H-T-B)).toFixed(1);let s="";
+let PV=0;async function pinta(){try{const r=await fetch("vivo.json"+q+"&r="+encodeURIComponent(R0),{cache:"no-store"});if(!r.ok)throw 0;const d=await r.json(),W=680,H=260,L=6,R=118,T=12,B=22;
+const P=d.puntos;if(!P.length)return;const t0=P[0][0],t1=d.t,vs=P.map(a=>a[1]);let lo=Math.min(...vs),hi=Math.max(...vs);const mn=d.p*0.002;if(hi-lo<mn){const c=(hi+lo)/2;lo=c-mn/2;hi=c+mn/2;}
+for(const l of d.lineas){const ex=(hi-lo)*.35;if(l.v>hi&&l.v-hi<ex)hi=l.v;if(l.v<lo&&lo-l.v<ex)lo=l.v;}const pad=(hi-lo)*.07;lo-=pad;hi+=pad;
+const x=t=>(L+(t-t0)/(t1-t0||1)*(W-L-R)).toFixed(1),y=v=>(T+(hi-v)/(hi-lo)*(H-T-B)).toFixed(1);
+let s='<defs><linearGradient id="gv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f2b632" stop-opacity=".38"/><stop offset="1" stop-color="#f2b632" stop-opacity="0"/></linearGradient></defs>';
+for(let j=0;j<4;j++){const v=lo+(hi-lo)*(0.12+0.76*j/3);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="#16244a"/>';}
 const PA={"6h":36e5,dia:4*36e5,semana:864e5,mes:7*864e5,"año":61*864e5}[d.rango]||36e5,ET=t=>d.rango==="6h"||d.rango==="dia"?new Date(t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City",hour:"numeric",minute:"2-digit"}):new Date(t).toLocaleDateString("es-MX",{timeZone:"America/Mexico_City",day:"numeric",month:"short"});
-for(let j=0;j<=7;j++){const t=t1-j*PA;if(t<t0)break;s+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="#14213f"/><text x="'+x(t)+'" y="'+(H-6)+'" fill="#8c9abb" font-size="11" text-anchor="middle">'+ET(t)+'</text>';}
-for(const l of d.lineas)s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(l.v)+'" y2="'+y(l.v)+'" stroke="'+l.c+'" stroke-dasharray="5 4" stroke-width="1.4"/><text x="'+(W-R+4)+'" y="'+(+y(l.v)-2)+'" fill="'+l.c+'" font-size="10.5">'+l.n+'</text><text x="'+(W-R+4)+'" y="'+(+y(l.v)+10)+'" fill="'+l.c+'" font-size="10.5">'+f(l.v,0)+'</text>';
-s+='<polyline fill="none" stroke="#f2b632" stroke-width="2" stroke-linejoin="round" points="'+P.map(a=>x(a[0])+","+y(a[1])).join(" ")+'"/>';
-for(const o of d.ops){const cx=+x(o.t),cy=+y(o.p),c=o.tipo==="COMPRA";if(o.tipo==="PESOS"){s+='<circle cx="'+cx+'" cy="'+cy+'" r="8" fill="#2fd08a" stroke="#070d1c" stroke-width="1.5"/><text x="'+cx+'" y="'+(cy+4)+'" fill="#070d1c" font-size="11" font-weight="700" text-anchor="middle">$</text>';continue;}s+='<path d="'+(c?"M"+cx+" "+(cy+3)+"l-7 12h14z":"M"+cx+" "+(cy-3)+"l-7 -12h14z")+'" fill="'+(c?"#2fd08a":"#ff5d6c")+'"/>';}
-s+='<circle cx="'+x(t1)+'" cy="'+y(d.p)+'" r="4.5" fill="#f2b632"/>';document.getElementById("vg").innerHTML=s;
-document.getElementById("vp").textContent=f(d.p,2)+" USDT";const m=d.lineas.find(l=>l.n==="meta de venta"||l.n==="vende si baja a"||l.n==="recompra");
+for(let j=0;j<=7;j++){const t=t1-j*PA;if(t<t0)break;s+='<line x1="'+x(t)+'" x2="'+x(t)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="#111d3d"/><text x="'+x(t)+'" y="'+(H-6)+'" fill="#8c9abb" font-size="11" text-anchor="middle">'+ET(t)+'</text>';}
+const pts=P.map(a=>x(a[0])+","+y(a[1])).join(" ");s+='<polygon fill="url(#gv)" points="'+x(t0)+","+(H-B)+" "+pts+" "+x(t1)+","+(H-B)+'"/>';
+const usadas=[];for(const l of d.lineas){let yy=+y(l.v),fuera=l.v>hi?"▲ ":l.v<lo?"▼ ":"";if(fuera)yy=l.v>hi?T+10:H-B-14;else s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" stroke="'+l.c+'" stroke-dasharray="5 4" stroke-width="1.4"/>';
+while(usadas.some(u=>Math.abs(u-yy)<24))yy+=yy>H/2?-24:24;usadas.push(yy);s+='<text x="'+(W-R+4)+'" y="'+(yy-2)+'" fill="'+l.c+'" font-size="10.5">'+fuera+l.n+'</text><text x="'+(W-R+4)+'" y="'+(yy+10)+'" fill="'+l.c+'" font-size="10.5" font-weight="600">'+f(l.v,0)+'</text>';}
+s+='<polyline fill="none" stroke="#f2b632" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" points="'+pts+'"/>';
+for(const o of d.ops){const cx=+x(o.t),cy=+y(o.p),c=o.tipo==="COMPRA";if(o.tipo==="PESOS"){s+='<circle cx="'+cx+'" cy="'+cy+'" r="8" fill="#2fd08a" stroke="#070d1c" stroke-width="1.5"/><text x="'+cx+'" y="'+(cy+4)+'" fill="#070d1c" font-size="11" font-weight="700" text-anchor="middle">$</text>';continue;}s+='<path d="'+(c?"M"+cx+" "+(cy+3)+"l-7 12h14z":"M"+cx+" "+(cy-3)+"l-7 -12h14z")+'" fill="'+(c?"#2fd08a":"#ff5d6c")+'" stroke="#070d1c" stroke-width="1.5"/>';}
+const cx=x(t1),cy=y(d.p);s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+cy+'" y2="'+cy+'" stroke="#f2b632" stroke-opacity=".35" stroke-dasharray="2 3"/><circle cx="'+cx+'" cy="'+cy+'" r="5" fill="#f2b632" opacity=".5"><animate attributeName="r" values="5;14;5" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values=".5;0;.5" dur="1.8s" repeatCount="indefinite"/></circle><circle cx="'+cx+'" cy="'+cy+'" r="4.5" fill="#f2b632" stroke="#070d1c" stroke-width="1.5"/>';
+document.getElementById("vg").innerHTML=s;const vp=document.getElementById("vp"),ch=(d.p/P[0][1]-1)*100;
+vp.innerHTML=f(d.p,2)+' <span style="font-size:14px;color:#8c9abb">USDT</span><span class="chg '+(ch>=0?"up":"down")+'">'+(ch>=0?"▲ +":"▼ ")+ch.toFixed(2)+'% en '+NOM[d.rango].replace(/^últim[oa]s? /,"")+'</span>';
+if(PV&&d.p!==PV){vp.classList.remove("flup","fldown");void vp.offsetWidth;vp.classList.add(d.p>PV?"flup":"fldown");setTimeout(()=>vp.classList.remove("flup","fldown"),900);}PV=d.p;
+const m=d.lineas.find(l=>l.n==="meta de venta"||l.n==="vende si baja a"||l.n==="recompra");
 document.getElementById("vn").textContent="Actualizado "+new Date(d.t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City"})+(m?" · "+m.n+" "+f(m.v,0)+" ("+((m.v/d.p-1)*100>=0?"+":"")+((m.v/d.p-1)*100).toFixed(2)+"%)":"");}
 catch(e){document.getElementById("vn").textContent="Sin conexión, reintentando…";}}const bv=document.querySelectorAll("#rgv button");function elige(r){R0=r;bv.forEach(x=>x.classList.toggle("on",x.dataset.r===r));document.getElementById("vt").textContent="En vivo · "+NOM[r];try{localStorage.setItem("rgv",r)}catch(e){}pinta();}
 bv.forEach(x=>x.onclick=()=>elige(x.dataset.r));let g=null;try{g=localStorage.getItem("rgv")}catch(e){}if(g&&NOM[g])elige(g);else pinta();setInterval(pinta,5000);})();</script>`;
@@ -439,21 +462,40 @@ function pagina() {
     if (t.tipo !== "COMPRA") vendido = (vendido || 0) + t.btc; else if (vendido != null) { ganBtc += (t.recibido ?? t.btc) + (t.sobra || 0) / t.precio - (t.aporte || 0) / t.precio - vendido; // Binance compra en pasos de 0.00001 BTC: lo que no alcanza se queda en USDT para la siguiente
       vendido = null; vueltas++; } }
   const tuyo = st.compras.reduce((a, c) => a + c.btc, 0) + (st.polvo || 0), enUsdt = TODO ? st.usdtBot || 0 : 0;
+  const mx = st.mxn || 0, puesto = (st.aportes || []).reduce((a, x) => a + (x.mxn || 0), 0), valorMX = (tuyo * p + enUsdt) * mx, ganMX = valorMX - puesto;
+  const botMX = ganBtc * p * mx, pesos = x => "$" + usd(Math.abs(x), 2), sg2 = x => (x >= 0 ? "+" : "−") + pesos(x);
+  const tarjetaPesos = SENT && REAL && TODO && st.aportes && mx && p ? `<div class="hero"><div class="l">Tu dinero con el bot · pesos mexicanos</div>
+<div class="big">${pesos(valorMX)} <small>MXN</small></div>
+<div class="pill ${ganMX >= 0 ? "pup" : "pdown"}">${ganMX >= 0 ? "▲ Llevas ganado" : "▼ Llevas perdido"} ${sg2(ganMX)} MXN (${puesto ? ((ganMX >= 0 ? "+" : "") + (ganMX / puesto * 100).toFixed(2)) : "0"}%)</div>
+<div class="hgrid"><div><span>Pusiste</span><b>${pesos(puesto)}</b></div><div><span>Ganado por el bot</span><b class="${botMX >= 0 ? "up" : "down"}">${sg2(botMX)}</b></div><div><span>Por el precio de ${st.moneda}</span><b class="${ganMX - botMX >= 0 ? "up" : "down"}">${sg2(ganMX - botMX)}</b></div></div>
+<div class="n">Dólar a ${usd(mx, 2)} pesos · lo que pusiste se cuenta con el tipo de cambio de ese día · no incluye el BNB de comisiones.</div></div>` : "";
   const metaMov = MOV && st.compras.length && !st.movMax ? Math.max(...st.compras.map(c => c.precio)) * (1 + MOV / 100) : 0;
   const tarjetasBtc = SENT && REAL ? `<div class="g"><div class="k"><div class="l">Tu ${st.moneda} con el bot</div><div class="v gold">${tuyo ? tuyo.toFixed(8) : p && enUsdt ? (enUsdt / p).toFixed(8) : "0"}</div><div class="n">${tuyo ? `≈ ${usd(tuyo * p, 2)} USDT${enUsdt >= 0.01 ? ` + ${usd(enUsdt, 2)} USDT sobrantes para la siguiente compra` : ""}` : enUsdt ? `Ahora en USDT: ${usd(enUsdt, 2)} (equivale a eso en ${st.moneda})` : ""}${metaMov && p ? ` · falta ${((metaMov / p - 1) * 100).toFixed(1)}% para la meta de venta` : ""}</div></div>
 <div class="k"><div class="l">${st.moneda} ganado por el bot</div><div class="v ${ganBtc >= 0 ? "up" : "down"}">${ganBtc >= 0 ? "+" : ""}${ganBtc.toFixed(8)}</div><div class="n">${vueltas ? `en ${vueltas} vuelta${vueltas > 1 ? "s" : ""} de vender caro y recomprar barato` : "Aún sin vueltas completas (vender y recomprar)"}${vendido != null && enUsdt && p ? ` · si recomprara ahora: ${(enUsdt - (st.aportePend || 0)) / p - vendido >= 0 ? "+" : ""}${((enUsdt - (st.aportePend || 0)) / p - vendido).toFixed(8)}` : ""}</div></div></div>` : "";
   const filas = st.trades.slice(-50).reverse().map(t => `<tr><td>${cuando(t.t)}</td><td class="${t.tipo === "COMPRA" ? "up" : t.tipo === "VENTA" ? "down" : "gold"}">${t.tipo}</td><td>${usd(t.precio)}</td><td class="${t.ganancia == null ? "" : t.ganancia >= 0 ? "up" : "down"}">${t.ganancia == null ? "" : signo(t.ganancia)}</td></tr>`).join("");
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="60"><title>Bot Cripto</title><style>
-body{margin:0;background:#070d1c;color:#e7ecf7;font:14px/1.5 system-ui,sans-serif}.w{max-width:720px;margin:0 auto;padding:18px 16px}
-.rg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px}.rg button{background:#0f1a36;color:#8c9abb;border:1px solid #1d2c52;border-radius:8px;padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer}.rg button.on{background:#f2b632;color:#070d1c;border-color:#f2b632;font-weight:700}.gd{width:100%;height:auto;margin-top:6px}
-h1{font-size:20px;margin:0 0 4px}h1 span{color:#f2b632}.sub{color:#8c9abb;font-size:12.5px;margin:0 0 14px}
-.b{border:1px dashed #f2b632;background:rgba(242,182,50,.14);border-radius:12px;padding:9px 12px;font-size:13px;margin-bottom:12px}.b b{color:#f2b632}
-.e{border:1px solid #ff5d6c;background:rgba(255,93,108,.1);border-radius:12px;padding:9px 12px;font-size:13px;margin-bottom:12px}
-.g{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.k{background:#0d1730;border:1px solid #1d2c52;border-radius:14px;padding:12px}
-.l{color:#8c9abb;font-size:11px;text-transform:uppercase;letter-spacing:.07em}.v{font-size:19px;font-weight:600;margin-top:2px}.n{color:#8c9abb;font-size:12px}
-table{width:100%;border-collapse:collapse;font-size:13px;background:#0d1730;border:1px solid #1d2c52;border-radius:14px}th,td{padding:7px 8px;border-bottom:1px solid #1d2c52;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{color:#8c9abb;font-weight:500;font-size:11px}
-.up{color:#2fd08a}.down{color:#ff5d6c}.gold{color:#f2b632}</style></head><body><div class="w">
-<h1>Bot <span>Cripto</span></h1><p class="sub">Funcionando 24/7 en el servidor · revisado ${st.ultimaRevision ? cuando(st.ultimaRevision) : "…"} · revisa el precio cada minuto · la gráfica en vivo se mueve cada 5 segundos</p>
+:root{--bg:#060b18;--card:#0c1630;--card2:#101d3d;--line:#1c2b52;--mut:#8c9abb;--txt:#e9eef9;--gold:#f2b632;--up:#2fd08a;--down:#ff5d6c}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(1200px 600px at 50% -200px,#16285a 0%,var(--bg) 60%) fixed,var(--bg);color:var(--txt);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.w{max-width:760px;margin:0 auto;padding:18px 16px 40px}
+.top{display:flex;align-items:center;justify-content:space-between}h1{font-size:22px;margin:0;letter-spacing:-.01em}h1 span{color:var(--gold)}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--up);background:rgba(47,208,138,.1);border:1px solid rgba(47,208,138,.3);padding:3px 10px;border-radius:99px}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--up);animation:lat 1.6s infinite}@keyframes lat{0%{box-shadow:0 0 0 0 rgba(47,208,138,.7)}70%{box-shadow:0 0 0 8px rgba(47,208,138,0)}100%{box-shadow:0 0 0 0 rgba(47,208,138,0)}}
+.sub{color:var(--mut);font-size:12.5px;margin:4px 0 14px}
+.hero{background:linear-gradient(135deg,#1b2d63 0%,#0f1c3f 55%,#0c1630 100%);border:1px solid #2a3f78;border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.big{font-size:34px;font-weight:700;letter-spacing:-.02em;margin:2px 0 6px}.big small{font-size:14px;color:var(--mut);font-weight:500}
+.pill{display:inline-block;font-weight:700;font-size:14px;padding:5px 12px;border-radius:99px;margin-bottom:12px}.pup{background:rgba(47,208,138,.14);color:var(--up)}.pdown{background:rgba(255,93,108,.14);color:var(--down)}
+.hgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}.hgrid div{background:rgba(6,11,24,.35);border-radius:12px;padding:8px 10px}.hgrid span{display:block;color:var(--mut);font-size:11px}.hgrid b{font-size:15px}
+.rg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px}.rg button{background:#0f1a36;color:var(--mut);border:1px solid var(--line);border-radius:99px;padding:5px 13px;font:inherit;font-size:12.5px;cursor:pointer;transition:.15s}.rg button.on{background:var(--gold);color:#070d1c;border-color:var(--gold);font-weight:700}.gd{width:100%;height:auto;margin-top:6px}
+.b{border:1px dashed var(--gold);background:rgba(242,182,50,.12);border-radius:14px;padding:10px 12px;font-size:13px;margin-bottom:12px}.b b{color:var(--gold)}
+.e{border:1px solid rgba(255,93,108,.6);background:rgba(255,93,108,.09);border-radius:14px;padding:10px 12px;font-size:13px;margin-bottom:12px}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}.k{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:16px;padding:13px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.v{font-size:20px;font-weight:650;margin-top:2px;transition:color .4s}.n{color:var(--mut);font-size:12px}
+#vp{font-size:26px}.flup{color:var(--up)!important}.fldown{color:var(--down)!important}.chg{font-size:13px;font-weight:600;margin-left:8px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right}tr:last-child td{border-bottom:0}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{color:var(--mut);font-weight:500;font-size:11px;background:#0f1a36}
+.up{color:var(--up)}.down{color:var(--down)}.gold{color:var(--gold)}
+@media(max-width:420px){.big{font-size:29px}.hgrid b{font-size:13.5px}.v{font-size:18px}}</style></head><body><div class="w">
+<div class="top"><h1>Bot <span>Cripto</span></h1><span class="live"><i></i>en vivo</span></div><p class="sub">Funcionando 24/7 en el servidor · revisado ${st.ultimaRevision ? cuando(st.ultimaRevision) : "…"} · revisa el precio cada minuto</p>
+${tarjetaPesos}
 ${REAL ? `<div class="e"><b>DINERO REAL.</b> ${TODO ? `Maneja todos tus ${st.moneda} de Spot: ${+cfg.movimiento ? `vende caro (+${cfg.movimiento}%${+cfg.movimientoStop ? ` y siguiendo el precio` : ``}) y recompra más barato (-${cfg.movimientoBaja ?? cfg.movimiento}%) para juntar más ${st.moneda}; si la tendencia se voltea, lo pasa a USDT para protegerlo.` : `los pasa a USDT con miedo o tendencia de bajada y los recompra con codicia y tendencia de subida.`}` : `Compra y vende ${st.moneda} de verdad en tu Binance Spot, solo con USDT y solo vende lo que él compró.`}</div>`
   : `<div class="b"><b>MODO SIMULACIÓN.</b> Dinero ficticio con precios reales de Binance.${cfg.real ? " Para pasar a dinero real falta poner la llave en el servidor." : ""}</div>`}
 ${alerta() ? `<div class="e"><b>ALERTA POR NOTICIAS.</b> ${alerta().motivo}. El bot vendió y no compra hasta el ${cuando(Date.parse(alerta().hasta))}</div>` : ""}${st.error ? `<div class="e">${st.error}</div>` : ""}${st.aviso ? `<div class="b">${st.aviso}</div>` : ""}
@@ -465,7 +507,7 @@ ${REAL ? `<div class="k"><div class="l">USDT libre en Spot</div><div class="v">$
 <div class="k"><div class="l">Tendencia (EMA 20 / 50)</div><div class="v ${sg && sg.e20 > sg.e50 ? "up" : "down"}">${sg ? (sg.e20 > sg.e50 ? "Subiendo" : "Bajando") : "…"}</div><div class="n">${sg ? `EMA20 ${usd(sg.e20, 0)} · EMA50 ${usd(sg.e50, 0)}` : ""}</div></div></div>`
   : `<div class="v gold" style="font-size:16px">${espera}</div><div class="n">Moneda: ${cfg.moneda} · Reglas: compra si baja ${cfg.bajada}%, vende si sube ${cfg.subida}%, ${cfg.monto} USDT por compra, hasta ${cfg.lotes} a la vez, tope ${cfg.tope}%</div></div></div>
 <div class="k" style="margin-bottom:12px"><div class="l">Ajuste automático ${cfg.autoajuste ? `(cada ${cfg.ajusteHoras || 6} horas)` : "(apagado)"}</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("") || `<div class="n">Todavía no hace su primera revisión.</div>`}</div>`}
-${tarjetasBtc}${SENT && st.ajustes.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
+${tarjetasBtc}${SENT && st.ajustes.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${st.ajustes.filter(a => !/^Me actualicé/.test(a.msg)).slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
 ${cfg.gananciasA === "BTC" ? `<div class="k" style="margin-bottom:12px"><div class="l">Bitcoin juntado con las ganancias</div><div class="v gold">${(st.btcJuntado || 0).toFixed(8)} BTC</div><div class="n">Se compró con ${usd(st.usdtPasado || 0)} USDT de ganancias${(st.porPasar || 0) >= 0.01 ? ` · apartado para la próxima compra: ${usd(st.porPasar)} USDT (Binance pide 5.5 mínimo)` : ""}. Este Bitcoin no se vende.</div></div>` : ""}
 ${SENT ? graficaVivo() + graficaDias() : ""}
 <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Precio</th><th>Ganancia</th></tr></thead><tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#8c9abb">Todavía no hay operaciones</td></tr>`}</tbody></table>
@@ -495,7 +537,8 @@ async function actualizar() {
     const antes = await git("rev-parse", "HEAD");
     await git("pull", "--ff-only", "--quiet");
     const despues = await git("rev-parse", "HEAD");
-    if (antes !== despues) {
+    const cambios = antes === despues ? [] : (await git("diff", "--name-only", antes, despues)).split("\n").filter(f => f && !/^(analisis\/|\.github\/)|\.md$/.test(f));
+    if (cambios.length) {
       anotarAjuste(`Me actualicé a una versión nueva (${despues.slice(0, 7)}). Reinicio en un momento.`);
       guardarJSON(F_EST, st); setTimeout(() => process.exit(0), 500);
     }
