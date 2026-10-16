@@ -200,6 +200,8 @@ async function usarPesos(mxn, ahora) {
 // - Si tiene BTC, compra más BTC con ese USDT cuando el precio baja movimientoBaja% (2%) bajo su precio promedio,
 //   y adoptar() lo suma con precio promedio. Así la meta de venta queda más cerca.
 // "aporte" = USDT tuyo que entró: no cuenta como BTC ganado por el bot.
+// USDT mínimo para que Binance acepte la compra: el BTC se compra en pasos (0.00001 BTC) y lo comprado debe valer al menos el mínimo (5 USDT).
+const minCompra = precio => { const paso = +par.paso || 0; return paso ? Math.ceil(par.minNotional * 1.005 / precio / paso) * paso * precio + 0.01 : par.minNotional * 1.02; };
 async function usarUSDT(precio, ahora) {
   if (st.caida && st.caida.usdt > st.usdtLibre - (st.usdtBot || 0) + 0.01) { const fuera = st.caida.usdt - Math.max(0, st.usdtLibre - (st.usdtBot || 0)); aportar(-fuera, "USDT que sacaste"); st.caida.usdt = +(st.caida.usdt - fuera).toFixed(8); }
   if ((st.usdtBot || 0) > st.usdtLibre + 0.01) { aportar(st.usdtLibre - st.usdtBot, "USDT que sacaste"); st.usdtBot = +st.usdtLibre.toFixed(8); } // si sacaste USDT
@@ -211,9 +213,10 @@ async function usarUSDT(precio, ahora) {
     anotarAjuste(`Tomé ${extra.toFixed(2)} USDT de tu Spot: los uso en la siguiente compra de ${st.moneda}${st.movVenta ? " (la recompra)" : ""}.`); return;
   }
   const baja = +(cfg.movimientoBaja ?? cfg.movimiento ?? 2) || 2, prom = st.compras[0].precio, meta = prom * (1 - baja / 100);
-  if (extra < par.minNotional * 1.02) { st.aviso = `Tienes ${extra.toFixed(2)} USDT en Spot: Binance pide al menos ${par.minNotional} USDT por compra; los junto hasta llegar.`; return; }
+  const minU = minCompra(Math.min(precio, meta));
+  if (extra < minU) { st.aviso = `Tienes ${extra.toFixed(2)} USDT en Spot: para comprar se necesitan ${minU.toFixed(2)} USDT (Binance pide ${par.minNotional} USDT y vende el BTC en pasos de ${par.paso}); te faltan ${(minU - extra).toFixed(2)} USDT.`; return; }
   if (precio > meta) { st.aviso = `Tienes ${extra.toFixed(2)} USDT en Spot: compro ${st.moneda} con ellos si baja a ${usd(meta, 2)} (-${baja}% de tu precio promedio ${usd(prom, 2)}).`; return; }
-  const monto = Math.floor(extra * 0.998 * 100) / 100;
+  const monto = Math.floor(extra * 100) / 100; // la comisión sale del BNB
   const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
   const qty = +o.executedQty, quote = +o.cummulativeQuoteQty, pr = quote / qty, recibido = qty - sumaComision(o.fills, par.base), fee = await comisionUSDT(o, par.base, pr);
   st.usdtLibre -= quote; st.baseLibre += recibido; adoptar(pr, ahora);
@@ -238,10 +241,11 @@ async function caidaUSDT(extra, precio, ahora) {
   if (!enBajada() && !c.btc && !st.compras.length) { // subió antes de comprar nada: el USDT se va con el bot a su siguiente compra
     st.usdtBot = +((st.usdtBot || 0) + c.usdt).toFixed(8); st.aportePend = +((st.aportePend || 0) + c.usdt).toFixed(8); st.caida = null; return; }
   const meta = c.ref * (1 - cfg.caidaUSDT / 100);
-  if (c.usdt < par.minNotional * 1.02) { if (c.usdt >= 1) st.aviso = `Tienes ${c.usdt.toFixed(2)} USDT para comprar en la bajada: Binance pide al menos ${par.minNotional} USDT por compra; los junto hasta llegar.`; return; }
+  const minU = minCompra(Math.min(precio, meta));
+  if (c.usdt < minU) { if (c.usdt >= 1) st.aviso = `Tienes ${c.usdt.toFixed(2)} USDT para comprar en la bajada: se necesitan ${minU.toFixed(2)} USDT (Binance pide ${par.minNotional} USDT y vende el BTC en pasos de ${par.paso}); te faltan ${(minU - c.usdt).toFixed(2)} USDT.`; return; }
   if (precio > meta) { st.aviso = `BTC va de bajada: con tus ${c.usdt.toFixed(2)} USDT compro si baja a ${usd(meta, 2)} (-${cfg.caidaUSDT}%).`; return; }
   // escalonado: parte el USDT en hasta 3 compras (cada una de al menos el mínimo de Binance); una parte en cada escalón de -X%
-  const partes = Math.max(1, Math.min(3, Math.floor(c.usdt / (par.minNotional * 1.1)))), monto = Math.floor((partes > 1 ? c.usdt / partes : c.usdt * 0.998) * 100) / 100;
+  const partes = Math.max(1, Math.min(3, Math.floor(c.usdt / (minU * 1.05)))), monto = Math.floor((partes > 1 ? c.usdt / partes : c.usdt) * 100) / 100;
   const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
   const qty = +o.executedQty, quote = +o.cummulativeQuoteQty, pr = quote / qty, recibido = qty - sumaComision(o.fills, par.base), fee = await comisionUSDT(o, par.base, pr);
   st.usdtLibre -= quote; c.usdt = +Math.max(0, c.usdt - quote).toFixed(8); c.btc = +(c.btc + recibido).toFixed(10); c.costo += quote + fee - sumaComision(o.fills, par.base) * pr; c.ref = pr;
