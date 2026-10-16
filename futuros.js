@@ -53,10 +53,11 @@ async function revisar(cli, spot, st, ahora, nota) {
   if (!(mark > 0)) throw new Error("No pude leer el precio de ETH");
   let hubo = false;
   // Lo que entra o sale de tu billetera de Futuros sin que el bot opere = lo que pusiste o sacaste.
-  if (f.ultSaldo != null && Math.abs(saldo - f.ultSaldo) >= 0.5) {
+  if (f.ultSaldo != null && Math.abs(saldo - f.ultSaldo) >= 0.05) { // el funding de una posición chica es de centavos
     const d = saldo - f.ultSaldo; f.puesto = +(f.puesto + d).toFixed(4);
     nota(d > 0 ? `Llegaron ${d.toFixed(2)} USDT a tu billetera de Futuros: los uso para ETH.` : `Sacaste ${(-d).toFixed(2)} USDT de Futuros.`);
   } else if (f.ultSaldo == null && saldo > 0) f.puesto = saldo;
+  if (!f.ops.length && amt === 0) f.puesto = saldo; // sin operar todavía, todo lo que hay es lo que pusiste
   f.precio = mark; f.saldo = saldo; f.disp = +bal.availableBalance || 0;
 
   const cerrar = async (motivo, stop) => {
