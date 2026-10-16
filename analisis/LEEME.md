@@ -195,3 +195,4 @@ Cada día compra (al abrir o si baja 0.5-1%) y vende al +0.3/0.5/1/2% o al cierr
 ## canasta.js / futeth.js (2026-10-16): futuros con ~15 USDT
 - Canasta XRP+ADA+DOGE (mínimo 5 USDT), diario, Donchian/SMA 1-3x: ninguna combinación gana en todos los periodos; desde jul-2025 casi todas pierden.
 - ETH solo largos, cierre diario arriba de SMA 35-45, 2x, stop 5%: positivo en los 5 periodos desde 2018 (SMA45: +72/+1403/+24/+120/+142%), pero caídas de 46-74%. ETHUSDT mínimo 20 USDT → 15 USDT de margen a 2x = 30 USDT de posición. Candidato elegido.
+- futethcorto.js (2026-10-16, usuario preguntó por órdenes a la baja): ETH SMA45 2x stop5% con largos Y cortos: +152/+665/-42/+113/+415% (caída 84% en 2021-23) vs solo largos +72/+1403/+24/+120/+142%. Los cortos ganan más en el último año pero pierden en mercados de lado; SMA35/40/50 con cortos también pierden en 2021-23. Se queda solo largos.
