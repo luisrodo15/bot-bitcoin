@@ -191,3 +191,7 @@ Cada día compra (al abrir o si baja 0.5-1%) y vende al +0.3/0.5/1/2% o al cierr
 - 2026-10-16 usdtacum2.js: recompra en 2 partes (-2%/-4%) pierde vs 1 parte (+1.2%: 13.6% vs 17.6%). Comisión 0.05% -> 18.9%, 0% -> 21.6%: cambiar de exchange da poco (+1 a +4 puntos). No se adopta.
 - 2026-10-16 futpeq.js (futuros con poco dinero, largo y corto, comisión 0.05%, funding 0.01%/8h, liquidación): mejor y más firme = Donchian 55 velas 4h en BTC, 2x, stop 3%: +281% / +210% / +112% / +66% (2018-19 / 2020-21 / 2022-23 / 2024-hoy), caídas de hasta 63-70%; 1x +150/+139/+64/+56 (caída 44%). 5x pierde en 2024-hoy. Vecinos 40/70 pierden en 2024-hoy (frágil). En monedas chicas (mínimo 5 USDT) y en velas diarias nada es constante. BTC futuros pide ~50 USDT de posición (finantres.mx, aprox) => ~25 USDT a 2x. Con 1 dólar ninguna sirve.
 - Corrección: en futuros BTCUSDT el mínimo es 0.001 BTC (~81 USDT de posición) => a 2x hacen falta ~45 USDT. Con 15 USDT habría que ir a 5-6x, que pierde en 2024-hoy (5x stop 2%: 0.87; stop 3%: 0.55).
+
+## canasta.js / futeth.js (2026-10-16): futuros con ~15 USDT
+- Canasta XRP+ADA+DOGE (mínimo 5 USDT), diario, Donchian/SMA 1-3x: ninguna combinación gana en todos los periodos; desde jul-2025 casi todas pierden.
+- ETH solo largos, cierre diario arriba de SMA 35-45, 2x, stop 5%: positivo en los 5 periodos desde 2018 (SMA45: +72/+1403/+24/+120/+142%), pero caídas de 46-74%. ETHUSDT mínimo 20 USDT → 15 USDT de margen a 2x = 30 USDT de posición. Candidato elegido.
