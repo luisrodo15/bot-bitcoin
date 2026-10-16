@@ -174,3 +174,7 @@ Repetición: actual sigue entre las mejores; hibrido4h (RSI 4h 67-71) sigue dand
 
 ## meta1.js (2026-10-16): meta de venta +0.9 a +1.1%
 El usuario pidió una meta más corta. BTC último año: +1.0% stop 0.3 da +59.9% de BTC con 38 ops (menos que las 51 del +1.2%); +1.1% +61.0%; +0.9% +39.5%. Todas pierden contra el +1.2% actual (+66.9%) en las dos mitades. No se cambia.
+
+## intradia3.js (2026-10-16): estrategia intradía de ChatGPT, máx 3 operaciones al día
+Tendencia 1H + gatillo 15M (envolvente/pin bar en soporte, RSI saliendo de sobreventa, sobre VWAP), stop soporte − ATR, TP 1:1, salida a 4 velas, meta 8% / paro 15% diario, comisión 0.075% por lado, BTC último año (BTC −28%).
+Tal cual: 1 operación en todo el año (−0.2%). Versiones que operan más (sin zona de soporte, RSI 40-50): 89-523 ops, ganan 13-48% de las veces y pierden −16% a −62% en USD. Ninguna variante (R 0.5-2, stop 0.5-2 ATR, sin salida por tiempo) gana. El bot: +19.6% USD / +66.9% BTC. No se usa.
