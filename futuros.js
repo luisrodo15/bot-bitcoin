@@ -7,7 +7,9 @@
 // - Stop: si el precio va 5% en contra desde la entrada, cierra. Después no vuelve a entrar de ese lado hasta que la señal cambie.
 // Seguridad: solo opera ETHUSDT, solo órdenes de mercado, los cierres son "reduceOnly", posición mínima de Binance.
 const crypto = require("crypto"), { aPaso } = require("./real.js");
-const SIMBOLO = "ETHUSDT", N = 45, NC = 20, L = 2, STOP = 0.05;
+const SIMBOLO = "ETHUSDT", N = 45, NC = 20, L = 2, STOP = 0.05, PERDIDA_MAX = 1; // USDT máximo a perder por entrada (lo pidió el usuario)
+// Stop: 5% en contra, o menos si hace falta para que la pérdida (con comisiones) no pase de PERDIDA_MAX.
+const stopPct = (q, p) => Math.min(STOP, (PERDIDA_MAX * 0.95 - q * p * 0.001) / (q * p));
 let revisadaEn = 0;
 
 async function orden(cli, params) {
@@ -73,9 +75,9 @@ async function revisar(cli, spot, st, ahora, nota) {
     nota(`Futuros: cerré ${q} ETH en ${nombre(lado)} a ${pr.toFixed(2)} (${motivo}). ${gan >= 0 ? "Ganancia" : "Pérdida"} aprox. ${Math.abs(gan).toFixed(2)} USDT.`);
   };
   if (lado) {
-    const ent = +pos.entryPrice, stopP = ent * (1 - lado * STOP);
-    f.pos = { lado, eth: Math.abs(amt), entrada: ent, pnl: +pos.unRealizedProfit || 0, liq: +pos.liquidationPrice || 0, stop: stopP };
-    if (lado > 0 ? mark <= stopP : mark >= stopP) await cerrar(`stop: ${lado > 0 ? "bajó" : "subió"} ${STOP * 100}% desde la entrada`, true);
+    const ent = +pos.entryPrice, sp = stopPct(Math.abs(amt), ent), stopP = ent * (1 - lado * sp);
+    f.pos = { lado, stopPct: sp, eth: Math.abs(amt), entrada: ent, pnl: +pos.unRealizedProfit || 0, liq: +pos.liquidationPrice || 0, stop: stopP };
+    if (lado > 0 ? mark <= stopP : mark >= stopP) await cerrar(`stop: ${lado > 0 ? "bajó" : "subió"} ${(sp * 100).toFixed(1)}% desde la entrada`, true);
     else if (senal !== lado) await cerrar(lado > 0 ? "ETH cerró el día abajo de su promedio de 45 días" : "terminó la bajada fuerte de ETH");
     if (hubo) f.pos = null;
   } else {
@@ -92,7 +94,7 @@ async function revisar(cli, spot, st, ahora, nota) {
         const o = await orden(cli, { side: senal > 0 ? "BUY" : "SELL", quantity: qty });
         const pr = +o.avgPrice, q = +o.executedQty;
         f.ops.push({ t: ahora, tipo: "ENTRADA", lado: senal, precio: pr, eth: q, motivo: senal > 0 ? `ETH cerró arriba de su promedio de 45 días (${f.cierre.toFixed(2)} > ${f.promedio.toFixed(2)})` : `bajada fuerte: ETH abajo de sus promedios de 20 y 200 días (${f.cierre.toFixed(2)})` }); hubo = true;
-        nota(`Futuros: abrí ${q} ETH en ${nombre(senal)} a ${pr.toFixed(2)} con 2x. Stop si ${senal > 0 ? "baja" : "sube"} a ${(pr * (1 - senal * STOP)).toFixed(2)}.`);
+        nota(`Futuros: abrí ${q} ETH en ${nombre(senal)} a ${pr.toFixed(2)} con 2x. Stop si ${senal > 0 ? "baja" : "sube"} a ${(pr * (1 - senal * stopPct(q, pr))).toFixed(2)} (pérdida máx. ~${PERDIDA_MAX} USDT).`);
       }
     }
   }

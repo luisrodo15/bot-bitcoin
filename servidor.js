@@ -518,8 +518,8 @@ function tarjetaFuturos() {
   const mx = st.mxn || 0, valor = f.saldo + (f.pos ? f.pos.pnl : 0), gan = valor - (f.puesto || 0), arriba = f.cierre > f.promedio;
   const cerradas = (f.ops || []).filter(o => o.ganancia != null), totC = cerradas.reduce((a, o) => a + o.ganancia, 0);
   const corteC = Math.min(f.prom20 || Infinity, f.prom200 || Infinity);
-  const estado = f.pos ? (f.pos.lado > 0 ? `En LARGO (gana si sube): ${f.pos.eth} ETH a ${usd(f.pos.entrada)}. Cierra si ETH cierra el día abajo de ${usd(f.promedio)} o si baja a ${usd(f.pos.stop)} (stop -5%).`
-      : `En CORTO (gana si baja): ${f.pos.eth} ETH a ${usd(f.pos.entrada)}. Cierra si termina la bajada fuerte o si ETH sube a ${usd(f.pos.stop)} (stop +5%).`)
+  const estado = f.pos ? (f.pos.lado > 0 ? `En LARGO (gana si sube): ${f.pos.eth} ETH a ${usd(f.pos.entrada)}. Cierra si ETH cierra el día abajo de ${usd(f.promedio)} o si baja a ${usd(f.pos.stop)} (stop: pérdida máx. ~1 USDT).`
+      : `En CORTO (gana si baja): ${f.pos.eth} ETH a ${usd(f.pos.entrada)}. Cierra si termina la bajada fuerte o si ETH sube a ${usd(f.pos.stop)} (stop: pérdida máx. ~1 USDT).`)
     : f.bloq ? `Salió por stop. No vuelve a entrar de ese lado hasta que la señal cambie.`
     : f.senal > 0 ? `Señal de LARGO: ETH cerró arriba de su promedio de 45 días (${usd(f.cierre)} > ${usd(f.promedio)}).`
     : f.senal < 0 ? `Señal de CORTO: bajada fuerte de ETH (abajo de sus promedios de 20 y 200 días).`
@@ -537,7 +537,7 @@ function ordenesFut() {
   const fila = (tit, verde, tipo, cant, disparo, nota) => `<div class="or"><div class="oh"><b class="${verde ? "up" : "down"}">${tit}</b><span>ETHUSDT Perpetuo · Aislado 2x</span></div>
 <div class="og"><div><span>Tipo</span>${tipo}</div><div><span>Cantidad</span>${cant} ETH</div><div><span>Se activa</span>${disparo}</div></div><div class="n">${nota}</div></div>`;
   const corteC = Math.min(f.prom20 || Infinity, f.prom200 || Infinity), L = f.pos && f.pos.lado > 0;
-  const abiertas = f.pos ? fila(L ? "Vender / Cerrar largo" : "Comprar / Cerrar corto", !L, "Stop Market", f.pos.eth, `ETH ${L ? "≤" : "≥"} ${usd(f.pos.stop)}`, `Stop ${L ? "-" : "+"}5%: cierra en cuanto ETH toque ese precio.`)
+  const abiertas = f.pos ? fila(L ? "Vender / Cerrar largo" : "Comprar / Cerrar corto", !L, "Stop Market", f.pos.eth, `ETH ${L ? "≤" : "≥"} ${usd(f.pos.stop)}`, `Stop ${L ? "-" : "+"}${((f.pos.stopPct || 0.05) * 100).toFixed(1)}%: cierra en cuanto ETH toque ese precio. Pérdida máxima ~1 USDT.`)
       + fila(L ? "Vender / Cerrar largo" : "Comprar / Cerrar corto", !L, "Mercado", f.pos.eth, L ? `cierre diario &lt; ${usd(f.promedio)}` : "fin de la bajada", L ? "Cierra a las 6 pm (México) si ETH cierra el día abajo de su promedio de 45 días." : "Cierra a las 6 pm (México) si ETH cierra arriba de su promedio de 20 días, ese promedio deja de bajar o cierra arriba del de 200 días.")
     : (f.bloq === 1 ? "" : fila("Comprar / Long", true, "Mercado", qty, `cierre diario &gt; ${usd(f.promedio)}`, `Compra a las 6 pm (México) si ETH cierra el día arriba de su promedio de 45 días. Ahora ETH está en ${usd(f.precio)}${f.precio ? (f.precio > f.promedio ? " (ya está arriba: si sigue así, compra hoy a las 6 pm)" : ` (le falta subir ${((f.promedio / f.precio - 1) * 100).toFixed(1)}%)`) : ""}.`))
       + (f.bloq === -1 ? "" : fila("Vender / Short", false, "Mercado", qty, `cierre diario &lt; ${usd(corteC)} y bajando`, `Abre un corto (gana si ETH baja) a las 6 pm (México) solo en bajada fuerte: cierre abajo de sus promedios de 20 días (${usd(f.prom20 || 0)}, y bajando) y de 200 días (${usd(f.prom200 || 0)}).`));
@@ -560,7 +560,7 @@ function pagina() {
   return html.slice(0, i) + `
 <div class="top"><h1>Bot <span>Futuros ETH</span></h1><span class="live"><i></i>en vivo</span></div><p class="sub">Funcionando 24/7 en el servidor · revisado ${f.revisado ? cuando(f.revisado) : "…"} · revisa el precio cada minuto</p>
 ${tarjetaFuturos()}
-<div class="e"><b>DINERO REAL.</b> ETH con 2x en margen aislado y la posición mínima de Binance. Largo (gana si sube) cuando ETH cierra el día arriba de su promedio de 45 días. Corto (gana si baja) solo en bajada fuerte: abajo de sus promedios de 20 y 200 días. Stop de 5% en contra.</div>
+<div class="e"><b>DINERO REAL.</b> ETH con 2x en margen aislado y la posición mínima de Binance. Largo (gana si sube) cuando ETH cierra el día arriba de su promedio de 45 días. Corto (gana si baja) solo en bajada fuerte: abajo de sus promedios de 20 y 200 días. Stop: cada entrada pierde como máximo ~1 USDT.</div>
 ${st.error ? `<div class="e">${st.error}</div>` : ""}
 ${avisos.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${avisos.map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
 ${graficaVivo().replace('<button data-r="6h" class="on">6 horas</button>', '<button data-r="1D" class="on">Velas 1D</button><button data-r="6h">6 horas</button>').replace('let R0="6h";const NOM={', 'let R0="1D";const NOM={"1D":"velas de 1 día",').replace("En vivo · últimas 6 horas", "En vivo · velas de 1 día (las del bot)").replace('localStorage.getItem("rgv")', 'localStorage.getItem("rgvf")').replace('localStorage.setItem("rgv"', 'localStorage.setItem("rgvf"').replace("compra/venta del bot", "compra/cierre del bot").replace('<span><b class="up">$</b> compra con tus pesos</span>', "").replace("precio de compra, meta y venta", "dónde va cada orden (compra, cierre y stop)")}
