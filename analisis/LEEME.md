@@ -186,3 +186,4 @@ Cada día compra (al abrir o si baja 0.5-1%) y vende al +0.3/0.5/1/2% o al cierr
 17 bajadas del bot desde 2018. Comprar con el USDT del usuario en 3 partes cada -X% contra esperar y comprar todo al volver la tendencia (BTC obtenido): 1% −3.3% prom (gana 10/17), 2% −3.0%, 3% −3.6%, 5% −2.4%, 8% −0.9%, 12% +1.6% (gana 7/17); peor caso −49% (1%) a −35% (12%). Escalones chicos son peores; ninguno gana claro a esperar.
 
 - 2026-10-16 usdtacum.js: ganancia de cada venta guardada en USDT (como el bot ahora). Último año BTC +1.2%/stop 0.3% = +17.6% USDT total (26 ventas, ambas mitades positivas; holdear -28%). SOL: mejor +6.3% (+0.9%), pierde en la 1a mitad con todas las metas; holdear SOL -50%. Se queda BTC.
+- 2026-10-16 usdtacum.js otras monedas (último año, USDT guardado): BNB +17%..+23% (meta +1.2..+2%, 21-34 ventas, ambas mitades +); ETH/XRP/ADA/DOGE pierden casi todas (holdear -42%..-72%). Ninguna da ventas diarias.
