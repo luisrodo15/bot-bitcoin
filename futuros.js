@@ -76,7 +76,9 @@ async function revisar(cli, spot, st, ahora, nota) {
   } else {
     f.pos = null;
     if (arriba && !f.bloq) {
-      const qty = aPaso(f.disp * L * 0.97 / mark, f.reglas.paso), min = Math.max(f.reglas.minNotional, f.reglas.minQty * mark);
+      // No mete todo el USDT (lo pidió el usuario): abre la posición más chica que Binance acepta (mínimo 20 USDT de ETH, ~10 USDT de margen a 2x).
+      const min = Math.max(f.reglas.minNotional, f.reglas.minQty * mark), paso = +f.reglas.paso;
+      const qty = aPaso(Math.min(Math.ceil(min * 1.03 / mark / paso) * paso, f.disp * L * 0.97 / mark), f.reglas.paso);
       if (+qty * mark < min || +qty < f.reglas.minQty) {
         if (f.disp > 0.5 || saldo > 0.5) f.aviso = `Para abrir ETH se necesitan unos ${(min / L / 0.97 + 0.2).toFixed(2)} USDT en Futuros y tienes ${f.disp.toFixed(2)}.`;
       } else {
