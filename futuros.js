@@ -111,6 +111,10 @@ async function revisar(cli, spot, st, ahora, nota) {
   if (f.ops.length > 200) f.ops = f.ops.slice(-200);
   // Después de operar, el saldo cambia por la ganancia o pérdida: eso no es depósito.
   f.ultSaldo = hubo ? +((await cli.llamar("GET", "/fapi/v2/balance")).find(b => b.asset === "USDT") || { balance: saldo }).balance : saldo;
+  // Rendimiento diario: valor de la cuenta (saldo + ganancia abierta) al empezar cada día y lo que pusiste ese día.
+  const valor = f.ultSaldo + (f.pos ? f.pos.pnl : 0), dia = Math.floor(ahora / 864e5) * 864e5, d = f.dias || (f.dias = []);
+  if (!d.length || d[d.length - 1].t !== dia) { d.push({ t: dia, ini: +valor.toFixed(4), puesto: f.puesto }); if (d.length > 400) d.splice(0, d.length - 400); }
+  d[d.length - 1].fin = +valor.toFixed(4); d[d.length - 1].puestoFin = f.puesto;
   f.revisado = ahora;
 }
 

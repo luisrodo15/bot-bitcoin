@@ -530,6 +530,16 @@ function tarjetaFuturos() {
 <div class="hgrid"><div><span>Precio ETH</span><b>${usd(f.precio)}</b></div><div><span>${f.pos ? "Ganancia abierta" : "Libre"}</span><b class="${f.pos ? (f.pos.pnl >= 0 ? "up" : "down") : ""}">${f.pos ? (f.pos.pnl >= 0 ? "+" : "−") + usd(Math.abs(f.pos.pnl)) : usd(f.disp)}</b></div><div><span>Operaciones cerradas</span><b class="${totC >= 0 ? "up" : "down"}">${cerradas.length} · ${totC >= 0 ? "+" : "−"}${usd(Math.abs(totC))}</b></div></div>
 <div class="n">${estado}</div>${f.previo ? `<div class="b" style="margin-top:8px;font-size:14px"><b>⚠ Orden en camino.</b> ${f.previo}</div>` : ""}${f.error ? `<div class="e" style="margin-top:8px">${f.error}</div>` : ""}${f.aviso ? `<div class="b" style="margin-top:8px">${f.aviso}</div>` : ""}</div>`;
 }
+// Rendimiento diario de Futuros: lo que ganó o perdió cada día (sin contar lo que pusiste o sacaste).
+function rendimientoFut() {
+  const f = st.fut || {}, d = f.dias || []; if (!d.length) return "";
+  const mx = st.mxn || 0, gan = x => (x.fin - x.ini) - ((x.puestoFin ?? x.puesto) - x.puesto);
+  const suma = n => { const u = d.slice(-n); const g = u.reduce((a, x) => a + gan(x), 0), base = Math.max(u[0].ini, u[0].fin - gan(u[0]), 1); return { g, pct: g / base * 100 }; };
+  const caja = (n, txt) => { const r = suma(n); return `<div><span>${txt}</span><b class="${r.g >= 0 ? "up" : "down"}">${r.pct >= 0 ? "+" : "−"}${Math.abs(r.pct).toFixed(2)}%</b><small class="n" style="display:block">${r.g >= 0 ? "+" : "−"}${usd(Math.abs(r.g))} USDT${mx ? ` · $${usd(Math.abs(r.g * mx))}` : ""}</small></div>`; };
+  const filas = d.slice(-7).reverse().map(x => { const g = gan(x), b = x.ini + ((x.puestoFin ?? x.puesto) - x.puesto), pct = b > 0.5 ? g / b * 100 : 0;
+    return `<div class="vr" style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:6px 0;font-size:13px"><span>${new Date(x.t).toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</span><b class="${g >= 0 ? "up" : "down"}">${g >= 0 ? "+" : "−"}${usd(Math.abs(g))} USDT (${pct >= 0 ? "+" : "−"}${Math.abs(pct).toFixed(2)}%)</b></div>`; }).join("");
+  return `<div class="k" style="margin-bottom:12px"><div class="l">Rendimiento diario</div><div class="og" style="margin-top:8px">${caja(1, "Hoy")}${caja(7, "7 días")}${caja(30, "30 días")}</div>${filas}<div class="n" style="margin-top:4px">Los días sin posición abierta el rendimiento es 0: el bot espera en USDT.</div></div>`;
+}
 // Órdenes como en Binance: las que el bot tiene pendientes (abiertas) y las que ya hizo (historial).
 function ordenesFut() {
   const f = st.fut || {}; if (f.promedio == null) return "";
@@ -564,7 +574,7 @@ ${tarjetaFuturos()}
 ${st.error ? `<div class="e">${st.error}</div>` : ""}
 ${avisos.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${avisos.map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
 ${graficaVivo().replace('<button data-r="6h" class="on">6 horas</button>', '<button data-r="1D" class="on">Velas 1D</button><button data-r="6h">6 horas</button>').replace('let R0="6h";const NOM={', 'let R0="1D";const NOM={"1D":"velas de 1 día",').replace("En vivo · últimas 6 horas", "En vivo · velas de 1 día (las del bot)").replace('localStorage.getItem("rgv")', 'localStorage.getItem("rgvf")').replace('localStorage.setItem("rgv"', 'localStorage.setItem("rgvf"').replace("compra/venta del bot", "compra/cierre del bot").replace('<span><b class="up">$</b> compra con tus pesos</span>', "").replace("precio de compra, meta y venta", "dónde va cada orden (compra, cierre y stop)")}
-${ordenesFut()}
+${rendimientoFut()}${ordenesFut()}
 
 </div></body></html>`;
 }
