@@ -464,7 +464,7 @@ let cacheVivo = {}, cacheVelas = {};
 async function vivo(rango) {
   if (!RANGOS_V[rango]) rango = "6h";
   const ahora = Date.now(), cv = cacheVivo[rango]; if (cv && ahora - cv.t < 3000) return cv.d;
-  const sym = `${st.moneda || cfg.moneda}USDT`, [iv, lim, dura] = RANGOS_V[rango], ve = cacheVelas[rango];
+  const FUT = !!cfg.soloFuturos, sym = FUT ? Fut.SIMBOLO : `${st.moneda || cfg.moneda}USDT`, [iv, lim, dura] = RANGOS_V[rango], ve = cacheVelas[rango];
   if (!ve || ahora - ve.t > dura) { const r = await fetch(`${API}/api/v3/klines?symbol=${sym}&interval=${iv}&limit=${lim}`, { signal: AbortSignal.timeout(8000) });
     if (r.ok) cacheVelas[rango] = { t: ahora, v: (await r.json()).map(k => [k[0], +k[4]]) }; }
   const velas = (cacheVelas[rango] || { v: [] }).v, desde = velas.length ? velas[0][0] : ahora - 6 * 36e5;
@@ -477,7 +477,11 @@ async function vivo(rango) {
   else if (st.movVenta && MOV) { lineas.push({ n: "vendió", v: st.movVenta, c: "#8c9abb" }); lineas.push({ n: "recompra", v: st.movVenta * (1 - MOVB / 100), c: "#2fd08a" }); lineas.push({ n: "recompra si sube", v: st.movVenta * (1 + MOVZ / 100), c: "#5aa9ff" }); }
   const ventas = st.trades.filter(t => t.t >= desde && (t.tipo === "COMPRA" || t.tipo === "VENTA")).map(t => ({ t: t.t, p: t.precio, tipo: t.tipo }))
     .concat((st.pesos || []).filter(x => x.t >= desde && x.precio).map(x => ({ t: x.t, p: x.precio, tipo: "PESOS" })));
-  const d = { t: ahora, p, rango, moneda: st.moneda || cfg.moneda, puntos: velas.concat(p ? [[ahora, p]] : []), lineas, ops: ventas };
+  if (FUT) { const f = st.fut || {}; lineas.length = 0; ventas.length = 0;
+    if (f.pos) { lineas.push({ n: "compró", v: f.pos.entrada, c: "#8c9abb" }); lineas.push({ n: "stop -5%", v: f.pos.stop, c: "#ff5d6c" }); }
+    if (f.promedio) lineas.push({ n: f.pos ? "sale si cierra abajo" : "entra si cierra arriba", v: f.promedio, c: "#2fd08a" });
+    for (const o of f.ops || []) if (o.t >= desde) ventas.push({ t: o.t, p: o.precio, tipo: o.tipo === "ENTRADA" ? "COMPRA" : "VENTA" }); }
+  const d = { t: ahora, p, rango, moneda: FUT ? "ETH" : st.moneda || cfg.moneda, puntos: velas.concat(p ? [[ahora, p]] : []), lineas, ops: ventas };
   cacheVivo[rango] = { t: ahora, d }; return d;
 }
 const graficaVivo = () => `<div class="k" style="margin-bottom:12px"><div class="l" id="vt">En vivo · últimas 6 horas</div>
@@ -523,6 +527,21 @@ function tarjetaFuturos() {
 <div class="n">${estado}</div>${f.error ? `<div class="e" style="margin-top:8px">${f.error}</div>` : ""}${f.aviso ? `<div class="b" style="margin-top:8px">${f.aviso}</div>` : ""}</div>`;
 }
 function pagina() {
+  const html = paginaCompleta(); if (!cfg.soloFuturos) return html;
+  const f = st.fut || {}, i = html.indexOf('<body><div class="w">') + 21, mx = st.mxn || 0;
+  const avisos = st.ajustes.filter(a => !/^Me actualicé/.test(a.msg)).slice(-4).reverse();
+  const filas = (f.ops || []).slice(-30).reverse().map(o => `<tr><td>${cuando(o.t)}</td><td class="${o.tipo === "ENTRADA" ? "up" : "down"}">${o.tipo === "ENTRADA" ? "COMPRA" : "CIERRE"}</td><td>${usd(o.precio)}</td><td>${o.ganancia == null ? "" : `<span class="${o.ganancia >= 0 ? "up" : "down"}">${o.ganancia >= 0 ? "+" : "−"}${usd(Math.abs(o.ganancia))}${mx ? ` <small>(${o.ganancia >= 0 ? "+" : "−"}$${usd(Math.abs(o.ganancia * mx))})</small>` : ""}</span>`}</td></tr>`).join("");
+  return html.slice(0, i) + `
+<div class="top"><h1>Bot <span>Futuros ETH</span></h1><span class="live"><i></i>en vivo</span></div><p class="sub">Funcionando 24/7 en el servidor · revisado ${f.revisado ? cuando(f.revisado) : "…"} · revisa el precio cada minuto</p>
+${tarjetaFuturos()}
+<div class="e"><b>DINERO REAL.</b> Solo apuesta a la subida de ETH con 2x en margen aislado: entra cuando ETH cierra el día arriba de su promedio de 45 días, sale cuando cierra abajo, y si baja 5% desde la entrada cierra (stop).</div>
+${st.error ? `<div class="e">${st.error}</div>` : ""}
+${avisos.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${avisos.map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
+${graficaVivo().replace("compra/venta del bot", "compra/cierre del bot").replace('<span><b class="up">$</b> compra con tus pesos</span>', "").replace("precio de compra, meta y venta", "promedio de 45 días, compra y stop")}
+<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Precio ETH</th><th>Ganancia</th></tr></thead><tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#8c9abb">Todavía no hay operaciones de futuros</td></tr>`}</tbody></table>
+</div></body></html>`;
+}
+function paginaCompleta() {
   const p = st.ultimoPrecio || 0, total = st.usdt + st.btc * p + (st.usdtPasado || 0), dif = total - st.base, n = Bot.niveles(st, cfg);
   const abierto = st.compras.reduce((a, c) => a + c.btc * p, 0);
   const espera = st.pausado ? "En pausa: " + st.pausado
