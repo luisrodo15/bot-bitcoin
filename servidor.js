@@ -211,7 +211,7 @@ async function usarUSDT(precio, ahora) {
     anotarAjuste(`Tomé ${extra.toFixed(2)} USDT de tu Spot: los uso en la siguiente compra de ${st.moneda}${st.movVenta ? " (la recompra)" : ""}.`); return;
   }
   const baja = +(cfg.movimientoBaja ?? cfg.movimiento ?? 2) || 2, prom = st.compras[0].precio, meta = prom * (1 - baja / 100);
-  if (extra < par.minNotional * 1.1) { st.aviso = `Tienes ${extra.toFixed(2)} USDT en Spot: Binance pide al menos ${par.minNotional} USDT por compra; los junto hasta llegar.`; return; }
+  if (extra < par.minNotional * 1.02) { st.aviso = `Tienes ${extra.toFixed(2)} USDT en Spot: Binance pide al menos ${par.minNotional} USDT por compra; los junto hasta llegar.`; return; }
   if (precio > meta) { st.aviso = `Tienes ${extra.toFixed(2)} USDT en Spot: compro ${st.moneda} con ellos si baja a ${usd(meta, 2)} (-${baja}% de tu precio promedio ${usd(prom, 2)}).`; return; }
   const monto = Math.floor(extra * 0.998 * 100) / 100;
   const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
@@ -238,7 +238,7 @@ async function caidaUSDT(extra, precio, ahora) {
   if (!enBajada() && !c.btc && !st.compras.length) { // subió antes de comprar nada: el USDT se va con el bot a su siguiente compra
     st.usdtBot = +((st.usdtBot || 0) + c.usdt).toFixed(8); st.aportePend = +((st.aportePend || 0) + c.usdt).toFixed(8); st.caida = null; return; }
   const meta = c.ref * (1 - cfg.caidaUSDT / 100);
-  if (c.usdt < par.minNotional * 1.1) { if (c.usdt >= 1) st.aviso = `Tienes ${c.usdt.toFixed(2)} USDT para comprar en la bajada: Binance pide al menos ${par.minNotional} USDT por compra; los junto hasta llegar.`; return; }
+  if (c.usdt < par.minNotional * 1.02) { if (c.usdt >= 1) st.aviso = `Tienes ${c.usdt.toFixed(2)} USDT para comprar en la bajada: Binance pide al menos ${par.minNotional} USDT por compra; los junto hasta llegar.`; return; }
   if (precio > meta) { st.aviso = `BTC va de bajada: con tus ${c.usdt.toFixed(2)} USDT compro si baja a ${usd(meta, 2)} (-${cfg.caidaUSDT}%).`; return; }
   // escalonado: parte el USDT en hasta 3 compras (cada una de al menos el mínimo de Binance); una parte en cada escalón de -X%
   const partes = Math.max(1, Math.min(3, Math.floor(c.usdt / (par.minNotional * 1.1)))), monto = Math.floor((partes > 1 ? c.usdt / partes : c.usdt * 0.998) * 100) / 100;
