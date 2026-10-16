@@ -92,6 +92,14 @@ async function revisar(cli, spot, st, ahora, nota) {
       }
     }
   }
+  // Aviso previo: qué orden va a poner al cierre del día (6 pm de México = 00:00 UTC) si el precio sigue así.
+  const cierreEn = 864e5 - ahora % 864e5, hrs = Math.floor(cierreEn / 36e5), min = Math.floor(cierreEn % 36e5 / 6e4), falta = `${hrs ? hrs + " h " : ""}${min} min`;
+  f.previo = null;
+  if (f.pos && mark <= f.pos.stop * 1.01) f.previo = `¡Cuidado! ETH (${mark.toFixed(2)}) está a menos de 1% del stop (${f.pos.stop.toFixed(2)}): si lo toca, el bot cierra la posición.`;
+  else if (f.pos && mark < f.promedio) f.previo = `El bot va a CERRAR la posición al cierre del día (en ${falta}) si ETH sigue abajo de ${f.promedio.toFixed(2)}. Ahora está en ${mark.toFixed(2)}.`;
+  else if (!f.pos && !f.bloq && mark > f.promedio) f.previo = `El bot va a COMPRAR ETH al cierre del día (en ${falta}) si ETH sigue arriba de ${f.promedio.toFixed(2)}. Ahora está en ${mark.toFixed(2)}.`;
+  const hoy = Math.floor(ahora / 864e5);
+  if (f.previo && cierreEn < 3 * 36e5 && f.previoDia !== hoy && !/Cuidado/.test(f.previo)) { f.previoDia = hoy; nota("Atención: " + f.previo); }
   if (f.ops.length > 200) f.ops = f.ops.slice(-200);
   // Después de operar, el saldo cambia por la ganancia o pérdida: eso no es depósito.
   f.ultSaldo = hubo ? +((await cli.llamar("GET", "/fapi/v2/balance")).find(b => b.asset === "USDT") || { balance: saldo }).balance : saldo;

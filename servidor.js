@@ -478,8 +478,8 @@ async function vivo(rango) {
   const ventas = st.trades.filter(t => t.t >= desde && (t.tipo === "COMPRA" || t.tipo === "VENTA")).map(t => ({ t: t.t, p: t.precio, tipo: t.tipo }))
     .concat((st.pesos || []).filter(x => x.t >= desde && x.precio).map(x => ({ t: x.t, p: x.precio, tipo: "PESOS" })));
   if (FUT) { const f = st.fut || {}; lineas.length = 0; ventas.length = 0;
-    if (f.pos) { lineas.push({ n: "compró", v: f.pos.entrada, c: "#8c9abb" }); lineas.push({ n: "stop -5%", v: f.pos.stop, c: "#ff5d6c" }); }
-    if (f.promedio) lineas.push({ n: f.pos ? "sale si cierra abajo" : "entra si cierra arriba", v: f.promedio, c: "#2fd08a" });
+    if (f.pos) { lineas.push({ n: "compró", v: f.pos.entrada, c: "#8c9abb" }); lineas.push({ n: "ORDEN STOP", v: f.pos.stop, c: "#ff5d6c" }); }
+    if (f.promedio) lineas.push({ n: f.pos ? "ORDEN CIERRE" : f.bloq ? "promedio 45 días" : "ORDEN COMPRA", v: f.promedio, c: f.pos ? "#f2b632" : "#2fd08a" });
     for (const o of f.ops || []) if (o.t >= desde) ventas.push({ t: o.t, p: o.precio, tipo: o.tipo === "ENTRADA" ? "COMPRA" : "VENTA" }); }
   const d = { t: ahora, p, rango, moneda: FUT ? "ETH" : st.moneda || cfg.moneda, puntos: velas.concat(p ? [[ahora, p]] : []), lineas, ops: ventas };
   cacheVivo[rango] = { t: ahora, d }; return d;
@@ -524,7 +524,7 @@ function tarjetaFuturos() {
 <div class="big">${usd(valor)} <small>USDT${mx ? ` ≈ $${usd(valor * mx)} MXN` : ""}</small></div>
 <div class="pill ${gan > -0.005 ? "pup" : "pdown"}">${gan > -0.005 ? "+" : "−"}${usd(Math.abs(gan))} USDT desde lo que pusiste (${usd(f.puesto || 0)})</div>
 <div class="hgrid"><div><span>Precio ETH</span><b>${usd(f.precio)}</b></div><div><span>${f.pos ? "Ganancia abierta" : "Libre"}</span><b class="${f.pos ? (f.pos.pnl >= 0 ? "up" : "down") : ""}">${f.pos ? (f.pos.pnl >= 0 ? "+" : "−") + usd(Math.abs(f.pos.pnl)) : usd(f.disp)}</b></div><div><span>Operaciones cerradas</span><b class="${totC >= 0 ? "up" : "down"}">${cerradas.length} · ${totC >= 0 ? "+" : "−"}${usd(Math.abs(totC))}</b></div></div>
-<div class="n">${estado}</div>${f.error ? `<div class="e" style="margin-top:8px">${f.error}</div>` : ""}${f.aviso ? `<div class="b" style="margin-top:8px">${f.aviso}</div>` : ""}</div>`;
+<div class="n">${estado}</div>${f.previo ? `<div class="b" style="margin-top:8px;font-size:14px"><b>⚠ Orden en camino.</b> ${f.previo}</div>` : ""}${f.error ? `<div class="e" style="margin-top:8px">${f.error}</div>` : ""}${f.aviso ? `<div class="b" style="margin-top:8px">${f.aviso}</div>` : ""}</div>`;
 }
 // Órdenes como en Binance: las que el bot tiene pendientes (abiertas) y las que ya hizo (historial).
 function ordenesFut() {
@@ -535,7 +535,7 @@ function ordenesFut() {
   const abiertas = f.pos ? fila("Vender", "Stop Market", f.pos.eth, `ETH ≤ ${usd(f.pos.stop)}`, "Stop -5%: cierra en cuanto ETH toque ese precio.")
       + fila("Vender", "Mercado", f.pos.eth, `cierre diario &lt; ${usd(f.promedio)}`, "Cierra a las 6 pm (México) si ETH cierra el día abajo de su promedio de 45 días.")
     : f.bloq ? `<div class="n" style="padding:8px 0">Sin órdenes abiertas: salió por stop y espera a que ETH cierre un día abajo de ${usd(f.promedio)} para volver a poner su orden de compra.</div>`
-    : fila("Comprar", "Mercado", qty, `cierre diario &gt; ${usd(f.promedio)}`, `Compra a las 6 pm (México) si ETH cierra el día arriba de su promedio de 45 días. Ahora ETH está en ${usd(f.precio)}${f.precio ? ` (le falta ${((f.promedio / f.precio - 1) * 100).toFixed(1)}%)` : ""}.`);
+    : fila("Comprar", "Mercado", qty, `cierre diario &gt; ${usd(f.promedio)}`, `Compra a las 6 pm (México) si ETH cierra el día arriba de su promedio de 45 días. Ahora ETH está en ${usd(f.precio)}${f.precio ? (f.precio > f.promedio ? " (ya está arriba: si sigue así, compra hoy a las 6 pm)" : ` (le falta subir ${((f.promedio / f.precio - 1) * 100).toFixed(1)}%)`) : ""}.`);
   // Ganancia de cada entrada: la del cierre que le siguió, o la ganancia abierta si sigue comprado.
   const ops = f.ops || [], ganDe = o => { if (o.tipo !== "ENTRADA") return o.ganancia; const k = ops.indexOf(o), c = ops.slice(k + 1).find(x => x.tipo === "CIERRE"); return c ? c.ganancia : f.pos ? f.pos.pnl : null; };
   const totG = ops.filter(o => o.tipo === "CIERRE").reduce((a, o) => a + (o.ganancia || 0), 0) + (f.pos ? f.pos.pnl : 0), mx = st.mxn || 0;
