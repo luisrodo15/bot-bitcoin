@@ -181,3 +181,6 @@ Tal cual: 1 operación en todo el año (−0.2%). Versiones que operan más (sin
 
 ## diaria1.js (2026-10-16): una operación cada día
 Cada día compra (al abrir o si baja 0.5-1%) y vende al +0.3/0.5/1/2% o al cierre del día; con y sin filtro de tendencia. BTC último año (−28%): las 24 variantes pierden en USD (−6% a −65%). Ganan 48-89% de los días, pero los días malos (se vende al cierre) se comen todo. Bot: +19.6% USD. No se usa.
+
+## escalon.js (2026-10-16): escalón de caidaUSDT
+17 bajadas del bot desde 2018. Comprar con el USDT del usuario en 3 partes cada -X% contra esperar y comprar todo al volver la tendencia (BTC obtenido): 1% −3.3% prom (gana 10/17), 2% −3.0%, 3% −3.6%, 5% −2.4%, 8% −0.9%, 12% +1.6% (gana 7/17); peor caso −49% (1%) a −35% (12%). Escalones chicos son peores; ninguno gana claro a esperar.
