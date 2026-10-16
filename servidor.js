@@ -280,7 +280,8 @@ function adoptar(precio, ahora) {
   st.polvo = 0; st.polvoCosto = 0;
   if (valor >= par.minNotional) {
     if (!c) { st.compras = [{ precio, btc: libre, costo: valor, t: ahora, adoptado: true }]; aportar(valor, "bitcoin que pusiste en Spot"); anotarAjuste(`Tomé ${libre} ${par.base} de tu Spot para manejarlos (valen ${valor.toFixed(2)} USDT).`); }
-    else if (Math.abs(c.btc - libre) > 1e-8) { const dv = (libre - c.btc - polvo) * precio; if (Math.abs(dv) >= 1) aportar(dv, dv > 0 ? "bitcoin que pusiste en Spot" : "bitcoin que sacaste"); c.costo = libre > c.btc ? c.costo + (libre - c.btc) * precio : c.costo * libre / c.btc; if (libre > c.btc) c.precio = c.costo / libre; c.btc = libre; } // si depositas más, la meta de +3% se calcula sobre el precio promedio
+    else if (Math.abs(c.btc - libre) > 1e-8) { const dv = (libre - c.btc - polvo) * precio; if (Math.abs(dv) >= 1) aportar(dv, dv > 0 ? "bitcoin que pusiste en Spot" : "bitcoin que sacaste"); c.costo = libre > c.btc ? c.costo + (libre - c.btc) * precio : c.costo * libre / c.btc; if (libre > c.btc) c.precio = c.costo / libre; c.btc = libre;
+      if (dv >= 1) anotarAjuste(`Tomé ${(dv / precio).toFixed(8)} ${par.base} que pusiste en Spot (valen ${dv.toFixed(2)} USDT). Tu nuevo precio promedio es ${usd(c.precio, 2)}; vendo desde ${usd(c.precio * (1 + (+cfg.movimiento || 0) / 100), 2)}.`); else if (dv <= -1) anotarAjuste(`Sacaste ${(-dv / precio).toFixed(8)} ${par.base} de Spot (${(-dv).toFixed(2)} USDT); sigo con lo que quedó.`); } // si depositas más, la meta de +3% se calcula sobre el precio promedio
   } else {
     st.compras = [];
     if (valor > 1) st.aviso = `Tus ${libre} ${par.base} en Spot valen ${valor.toFixed(2)} USDT; Binance pide al menos ${par.minNotional} USDT para venderlos.`;
@@ -374,7 +375,8 @@ async function velas30() {
 }
 const texto = g => `compra si baja ${g.bajada}%, vende si sube ${g.subida}%, ${g.lotes} a la vez, tope ${g.tope}%`;
 function anotarAjuste(msg) {
-  st.ajustes.push({ t: Date.now(), msg }); st.ajustes = st.ajustes.slice(-10);
+  if (/^Me actualicé/.test(msg)) st.ajustes = st.ajustes.filter(a => !/^Me actualicé/.test(a.msg)); // solo el último, para no tapar los avisos
+  st.ajustes.push({ t: Date.now(), msg }); st.ajustes = st.ajustes.slice(-15);
   fs.appendFileSync(F_CAMBIOS, new Date().toISOString() + "  " + msg + "\n"); console.log("AJUSTE", msg);
 }
 let ajustando = false;
@@ -561,7 +563,7 @@ ${REAL ? `<div class="k"><div class="l">USDT libre en Spot</div><div class="v">$
 <div class="k"><div class="l">Tendencia (EMA 20 / 50)</div><div class="v ${sg && sg.e20 > sg.e50 ? "up" : "down"}">${sg ? (sg.e20 > sg.e50 ? "Subiendo" : "Bajando") : "…"}</div><div class="n">${sg ? `EMA20 ${usd(sg.e20, 0)} · EMA50 ${usd(sg.e50, 0)}` : ""}</div></div></div>`
   : `<div class="v gold" style="font-size:16px">${espera}</div><div class="n">Moneda: ${cfg.moneda} · Reglas: compra si baja ${cfg.bajada}%, vende si sube ${cfg.subida}%, ${cfg.monto} USDT por compra, hasta ${cfg.lotes} a la vez, tope ${cfg.tope}%</div></div></div>
 <div class="k" style="margin-bottom:12px"><div class="l">Ajuste automático ${cfg.autoajuste ? `(cada ${cfg.ajusteHoras || 6} horas)` : "(apagado)"}</div>${st.ajustes.slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("") || `<div class="n">Todavía no hace su primera revisión.</div>`}</div>`}
-${tarjetasBtc}${SENT && st.ajustes.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${st.ajustes.filter(a => !/^Me actualicé/.test(a.msg)).slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
+${tarjetasBtc}${SENT && st.ajustes.some(a => !/^Me actualicé/.test(a.msg)) ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${st.ajustes.filter(a => !/^Me actualicé/.test(a.msg)).slice(-3).reverse().map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
 ${cfg.gananciasA === "BTC" ? `<div class="k" style="margin-bottom:12px"><div class="l">Bitcoin juntado con las ganancias</div><div class="v gold">${(st.btcJuntado || 0).toFixed(8)} BTC</div><div class="n">Se compró con ${usd(st.usdtPasado || 0)} USDT de ganancias${(st.porPasar || 0) >= 0.01 ? ` · apartado para la próxima compra: ${usd(st.porPasar)} USDT (Binance pide 5.5 mínimo)` : ""}. Este Bitcoin no se vende.</div></div>` : ""}
 ${SENT ? graficaVivo() + graficaDias() : ""}
 <table><thead><tr><th>Fecha</th><th>Tipo</th><th>Precio</th><th>Ganancia</th></tr></thead><tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#8c9abb">Todavía no hay operaciones</td></tr>`}</tbody></table>
