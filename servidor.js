@@ -518,7 +518,7 @@ function tarjetaFuturos() {
     : `Esperando: entra cuando ETH cierre el día arriba de ${usd(f.promedio)} (promedio de 45 días; último cierre ${usd(f.cierre)}).`;
   return `<div class="hero"><div class="l">Futuros ETH · 2x · solo a la subida</div>
 <div class="big">${usd(valor)} <small>USDT${mx ? ` ≈ $${usd(valor * mx)} MXN` : ""}</small></div>
-<div class="pill ${gan >= 0 ? "pup" : "pdown"}">${gan >= 0 ? "+" : "−"}${usd(Math.abs(gan))} USDT desde lo que pusiste (${usd(f.puesto || 0)})</div>
+<div class="pill ${gan > -0.005 ? "pup" : "pdown"}">${gan > -0.005 ? "+" : "−"}${usd(Math.abs(gan))} USDT desde lo que pusiste (${usd(f.puesto || 0)})</div>
 <div class="hgrid"><div><span>Precio ETH</span><b>${usd(f.precio)}</b></div><div><span>${f.pos ? "Ganancia abierta" : "Libre"}</span><b class="${f.pos ? (f.pos.pnl >= 0 ? "up" : "down") : ""}">${f.pos ? (f.pos.pnl >= 0 ? "+" : "−") + usd(Math.abs(f.pos.pnl)) : usd(f.disp)}</b></div><div><span>Operaciones cerradas</span><b class="${totC >= 0 ? "up" : "down"}">${cerradas.length} · ${totC >= 0 ? "+" : "−"}${usd(Math.abs(totC))}</b></div></div>
 <div class="n">${estado}</div>${f.error ? `<div class="e" style="margin-top:8px">${f.error}</div>` : ""}${f.aviso ? `<div class="b" style="margin-top:8px">${f.aviso}</div>` : ""}</div>`;
 }

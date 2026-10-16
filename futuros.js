@@ -8,6 +8,7 @@
 // Seguridad: solo opera ETHUSDT, solo órdenes de mercado, las ventas son "reduceOnly" (solo cierran, nunca abren cortos).
 const crypto = require("crypto"), { aPaso } = require("./real.js");
 const SIMBOLO = "ETHUSDT", N = 45, L = 2, STOP = 0.05;
+let revisadaEn = 0;
 
 async function orden(cli, params) {
   const id = "fut" + Date.now().toString(36) + crypto.randomBytes(3).toString("hex");
@@ -25,7 +26,7 @@ async function orden(cli, params) {
 async function revisar(cli, spot, st, ahora, nota) {
   const f = st.fut || (st.fut = { ops: [], puesto: 0, bloq: false });
   f.error = null; f.aviso = null;
-  if (!f.llaveT || ahora - f.llaveT > 6 * 3600e3) {
+  if (!revisadaEn || ahora - revisadaEn > 6 * 3600e3) { // en memoria: al reiniciar el servidor vuelve a sincronizar la hora
     await cli.sincronizar("/fapi/v1/time");
     const r = await spot.restricciones();
     if (r.enableWithdrawals) throw new Error("Tu llave permite RETIROS: no opero futuros con ella.");
@@ -34,7 +35,7 @@ async function revisar(cli, spot, st, ahora, nota) {
     if (!s || s.status !== "TRADING") throw new Error(`${SIMBOLO} no está disponible en Futuros`);
     const fl = t => s.filters.find(x => x.filterType === t) || {};
     f.reglas = { paso: fl("MARKET_LOT_SIZE").stepSize || fl("LOT_SIZE").stepSize, minQty: +(fl("MARKET_LOT_SIZE").minQty || fl("LOT_SIZE").minQty), minNotional: +(fl("MIN_NOTIONAL").notional || 20) };
-    f.llaveT = ahora;
+    revisadaEn = ahora;
   }
   // Señal con velas diarias cerradas
   const k = (await cli.llamar("GET", "/fapi/v1/klines", { symbol: SIMBOLO, interval: "1d", limit: N + 3 }, false)).filter(x => x[6] < ahora);
@@ -46,7 +47,10 @@ async function revisar(cli, spot, st, ahora, nota) {
 
   const bal = (await cli.llamar("GET", "/fapi/v2/balance")).find(b => b.asset === "USDT") || { balance: 0, availableBalance: 0 };
   const pos = (await cli.llamar("GET", "/fapi/v2/positionRisk", { symbol: SIMBOLO }))[0] || {};
-  const amt = +pos.positionAmt || 0, mark = +pos.markPrice || 0, saldo = +bal.balance || 0;
+  // Sin posición, Binance manda markPrice 0: el precio se toma de premiumIndex.
+  const amt = +pos.positionAmt || 0, saldo = +bal.balance || 0;
+  const mark = +pos.markPrice || +(await cli.llamar("GET", "/fapi/v1/premiumIndex", { symbol: SIMBOLO }, false)).markPrice;
+  if (!(mark > 0)) throw new Error("No pude leer el precio de ETH");
   let hubo = false;
   // Lo que entra o sale de tu billetera de Futuros sin que el bot opere = lo que pusiste o sacaste.
   if (f.ultSaldo != null && Math.abs(saldo - f.ultSaldo) >= 0.5) {
