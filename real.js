@@ -26,7 +26,7 @@ function crearCliente(API, llave) {
   }
   return {
     llamar,
-    async sincronizar() { const d = await llamar("GET", "/api/v3/time", {}, false); desfase = d.serverTime - Date.now(); },
+    async sincronizar(ruta = "/api/v3/time") { const d = await llamar("GET", ruta, {}, false); desfase = d.serverTime - Date.now(); },
     restricciones: () => llamar("GET", "/sapi/v1/account/apiRestrictions"),
     cuenta: () => llamar("GET", "/api/v3/account", { omitZeroBalances: "true" }),
     precio: async s => +(await llamar("GET", "/api/v3/ticker/price", { symbol: s }, false)).price,

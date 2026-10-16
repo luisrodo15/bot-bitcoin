@@ -17,5 +17,7 @@
   "comprarConMXN": false,
   "usarUSDT": true,
   "caidaUSDT": 5,
-  "acumularUSDT": true
+  "acumularUSDT": true,
+  "futuros": true,
+  "soloFuturos": true
 }

@@ -5,7 +5,7 @@
 //   con poner-llave.sh). La llave debe tener trading Spot y NO retiros. Ver real.js.
 const fs = require("fs"), path = require("path"), http = require("http"), crypto = require("crypto");
 require("./bot.js"); const Bot = globalThis.Bot;
-const Real = require("./real.js");
+const Real = require("./real.js"), Fut = require("./futuros.js");
 require("./sentimiento.js"); const Sen = globalThis.Sentimiento;
 
 const DIR = __dirname;
@@ -23,15 +23,16 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT", "acumularUSDT"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT", "acumularUSDT", "futuros", "soloFuturos"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 // Estas opciones solo valen mientras estén en ajustes.json; si se quitan de ahí, se apagan (no se quedan guardadas en config.json).
-for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT", "acumularUSDT"]) if (AJ[k] === undefined) delete cfg[k];
+for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT", "acumularUSDT", "futuros", "soloFuturos"]) if (AJ[k] === undefined) delete cfg[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
 const llave = cfg.real ? Real.leerLlave() : null;
 const REAL = !!llave;
 const cli = REAL ? Real.crearCliente(API, llave) : null;
+const cliF = REAL && cfg.futuros ? Real.crearCliente(process.env.API_FUTUROS || "https://fapi.binance.com", llave) : null;
 const F_EST = path.join(DIR, REAL ? "estado-real.json" : "estado.json"), F_CSV = path.join(DIR, REAL ? "registro-real.csv" : "registro.csv");
 let st = leerJSON(F_EST, null) || Bot.estadoInicial(cfg);
 if (REAL && !st.real) { st = Bot.estadoInicial(cfg); st.real = true; st.usdt = 0; st.base = 0; }
@@ -87,7 +88,8 @@ let revisando = false;
 async function revisar() {
   if (revisando) return; revisando = true;
   try {
-    if (REAL) await revisarReal(); else {
+    if (REAL) { try { await revisarReal(); } finally {
+      if (cliF) try { await Fut.revisar(cliF, cli, st, Date.now(), anotarAjuste); } catch (e) { (st.fut = st.fut || { ops: [], puesto: 0 }).error = "Futuros: " + e.message; console.error(new Date().toISOString(), "futuros", e.message); } } } else {
       const r = await fetch(urlPrecio(), { signal: AbortSignal.timeout(15000) });
       if (!r.ok) throw new Error("Binance respondió " + r.status);
       const precio = +(await r.json()).price;
@@ -127,6 +129,19 @@ async function revisarReal() {
   st.usdtLibre = libre("USDT"); st.baseLibre = libre(par.base);
   st.error = null; st.aviso = null;
   await tasaMXN(ahora); if (TODO) await prepararAportes();
+  // soloFuturos: el bot de Spot se apaga. Vende el BTC que maneja (una vez) y deja el USDT en Spot para que lo pases a Futuros.
+  if (cfg.soloFuturos) {
+    st.ultimoPrecio = precio; st.ultimaRevision = ahora;
+    for (const c of [...st.compras]) {
+      try { const t = await venderReal({ compra: c.t, tipo: "VENTA", motivo: "Pasar tu dinero a Futuros" }, precio, ahora);
+        if (t) anotarAjuste(`Vendí ${t.btc} ${st.moneda} a ${usd(t.precio, 2)}: quedaron ${t.usdt.toFixed(2)} USDT en Spot para pasarlos a Futuros.`); }
+      catch (e) { st.error = "No se pudo vender para pasar a Futuros: " + e.message; return; }
+    }
+    st.usdtBot = 0; st.usdtGuardado = 0; st.caida = null;
+    const u = (await cli.cuenta()).balances.find(b => b.asset === "USDT"); st.usdtLibre = u ? +u.free : 0;
+    st.aviso = st.usdtLibre >= 1 ? `Spot apagado. Tienes ${st.usdtLibre.toFixed(2)} USDT en Spot: pásalos a Futuros (Activos → Transferir → de Spot a Futuros USDⓈ-M) y el bot opera ETH con ellos.` : "Spot apagado: el bot solo opera Futuros ETH.";
+    return;
+  }
   if (TODO) adoptar(precio, ahora);
   if (TODO && cfg.usarUSDT) try { await usarUSDT(precio, ahora); } catch (e) { st.error = "No se pudo usar tu USDT: " + e.message; }
   if (TODO && cfg.comprarConMXN) try { const bnbPesos = await cuidarBNB(libre("BNB"), libre("MXN")); await usarPesos(libre("MXN") - bnbPesos, ahora); } catch (e) { st.error = "No se pudieron usar tus pesos: " + e.message; }
@@ -491,6 +506,22 @@ const m=d.lineas.find(l=>l.n==="meta de venta"||l.n==="vende si baja a"||l.n==="
 document.getElementById("vn").textContent="Actualizado "+new Date(d.t).toLocaleTimeString("es-MX",{timeZone:"America/Mexico_City"})+(m?" · "+m.n+" "+f(m.v,0)+" ("+((m.v/d.p-1)*100>=0?"+":"")+((m.v/d.p-1)*100).toFixed(2)+"%)":"");}
 catch(e){document.getElementById("vn").textContent="Sin conexión, reintentando…";}}const bv=document.querySelectorAll("#rgv button");function elige(r){R0=r;bv.forEach(x=>x.classList.toggle("on",x.dataset.r===r));document.getElementById("vt").textContent="En vivo · "+NOM[r];try{localStorage.setItem("rgv",r)}catch(e){}pinta();}
 bv.forEach(x=>x.onclick=()=>elige(x.dataset.r));let g=null;try{g=localStorage.getItem("rgv")}catch(e){}if(g&&NOM[g])elige(g);else pinta();setInterval(pinta,5000);})();</script>`;
+// Tarjeta de Futuros ETH
+function tarjetaFuturos() {
+  const f = st.fut; if (!cliF && !f) return "";
+  if (!f || f.precio == null) return `<div class="hero"><div class="l">Futuros ETH · 2x</div><div class="n" style="margin-top:6px">${f && f.error ? f.error : "Conectando con Futuros…"}</div></div>`;
+  const mx = st.mxn || 0, valor = f.saldo + (f.pos ? f.pos.pnl : 0), gan = valor - (f.puesto || 0), arriba = f.cierre > f.promedio;
+  const cerradas = (f.ops || []).filter(o => o.ganancia != null), totC = cerradas.reduce((a, o) => a + o.ganancia, 0);
+  const estado = f.pos ? `Comprado ${f.pos.eth} ETH a ${usd(f.pos.entrada)}. Cierra si ETH cierra el día abajo de ${usd(f.promedio)} o si baja a ${usd(f.pos.stop)} (stop -5%).`
+    : f.bloq ? `Salió por stop. Vuelve a entrar cuando ETH cierre un día abajo de su promedio y luego arriba.`
+    : arriba ? `Señal de compra: ETH cerró arriba de su promedio de 45 días (${usd(f.cierre)} > ${usd(f.promedio)}).`
+    : `Esperando: entra cuando ETH cierre el día arriba de ${usd(f.promedio)} (promedio de 45 días; último cierre ${usd(f.cierre)}).`;
+  return `<div class="hero"><div class="l">Futuros ETH · 2x · solo a la subida</div>
+<div class="big">${usd(valor)} <small>USDT${mx ? ` ≈ $${usd(valor * mx)} MXN` : ""}</small></div>
+<div class="pill ${gan >= 0 ? "pup" : "pdown"}">${gan >= 0 ? "+" : "−"}${usd(Math.abs(gan))} USDT desde lo que pusiste (${usd(f.puesto || 0)})</div>
+<div class="hgrid"><div><span>Precio ETH</span><b>${usd(f.precio)}</b></div><div><span>${f.pos ? "Ganancia abierta" : "Libre"}</span><b class="${f.pos ? (f.pos.pnl >= 0 ? "up" : "down") : ""}">${f.pos ? (f.pos.pnl >= 0 ? "+" : "−") + usd(Math.abs(f.pos.pnl)) : usd(f.disp)}</b></div><div><span>Operaciones cerradas</span><b class="${totC >= 0 ? "up" : "down"}">${cerradas.length} · ${totC >= 0 ? "+" : "−"}${usd(Math.abs(totC))}</b></div></div>
+<div class="n">${estado}</div>${f.error ? `<div class="e" style="margin-top:8px">${f.error}</div>` : ""}${f.aviso ? `<div class="b" style="margin-top:8px">${f.aviso}</div>` : ""}</div>`;
+}
 function pagina() {
   const p = st.ultimoPrecio || 0, total = st.usdt + st.btc * p + (st.usdtPasado || 0), dif = total - st.base, n = Bot.niveles(st, cfg);
   const abierto = st.compras.reduce((a, c) => a + c.btc * p, 0);
@@ -551,8 +582,8 @@ table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;backgr
 .up{color:var(--up)}.down{color:var(--down)}.gold{color:var(--gold)}
 @media(max-width:420px){.big{font-size:29px}.hgrid b{font-size:13.5px}.v{font-size:18px}}</style></head><body><div class="w">
 <div class="top"><h1>Bot <span>Cripto</span></h1><span class="live"><i></i>en vivo</span></div><p class="sub">Funcionando 24/7 en el servidor · revisado ${st.ultimaRevision ? cuando(st.ultimaRevision) : "…"} · revisa el precio cada minuto</p>
-${tarjetaPesos}
-${REAL ? `<div class="e"><b>DINERO REAL.</b> ${TODO ? `Compra barato y vende caro tus ${st.moneda} de Spot: ${+cfg.movimiento ? `vende al +${cfg.movimiento}%${+cfg.movimientoStop ? ` siguiendo el precio` : ``} y recompra más barato (-${cfg.movimientoBaja ?? cfg.movimiento}%)${cfg.acumularUSDT ? `; la ganancia de cada venta se guarda en USDT` : ` para juntar más ${st.moneda}`}.${cfg.usarUSDT && cfg.caidaUSDT ? ` Con tu USDT compra en cada bajada de ${cfg.caidaUSDT}%.` : ``} Si la tendencia se voltea, espera en USDT y recompra más abajo. Lo mejoro cada día.` : `los pasa a USDT con miedo o tendencia de bajada y los recompra con codicia y tendencia de subida.`}` : `Compra y vende ${st.moneda} de verdad en tu Binance Spot, solo con USDT y solo vende lo que él compró.`}</div>`
+${cfg.soloFuturos ? "" : tarjetaPesos}${tarjetaFuturos()}
+${REAL ? `<div class="e"><b>DINERO REAL.</b> ${cfg.soloFuturos ? `Spot apagado: el bot solo opera Futuros ETH con 2x.` : TODO ? `Compra barato y vende caro tus ${st.moneda} de Spot: ${+cfg.movimiento ? `vende al +${cfg.movimiento}%${+cfg.movimientoStop ? ` siguiendo el precio` : ``} y recompra más barato (-${cfg.movimientoBaja ?? cfg.movimiento}%)${cfg.acumularUSDT ? `; la ganancia de cada venta se guarda en USDT` : ` para juntar más ${st.moneda}`}.${cfg.usarUSDT && cfg.caidaUSDT ? ` Con tu USDT compra en cada bajada de ${cfg.caidaUSDT}%.` : ``} Si la tendencia se voltea, espera en USDT y recompra más abajo. Lo mejoro cada día.` : `los pasa a USDT con miedo o tendencia de bajada y los recompra con codicia y tendencia de subida.`}` : `Compra y vende ${st.moneda} de verdad en tu Binance Spot, solo con USDT y solo vende lo que él compró.`}</div>`
   : `<div class="b"><b>MODO SIMULACIÓN.</b> Dinero ficticio con precios reales de Binance.${cfg.real ? " Para pasar a dinero real falta poner la llave en el servidor." : ""}</div>`}
 ${alerta() ? `<div class="e"><b>ALERTA POR NOTICIAS.</b> ${alerta().motivo}. El bot vendió y no compra hasta el ${cuando(Date.parse(alerta().hasta))}</div>` : ""}${st.error ? `<div class="e">${st.error}</div>` : ""}${st.aviso ? `<div class="b">${st.aviso}</div>` : ""}
 <div class="g"><div class="k"><div class="l">Precio ${st.moneda || cfg.moneda}</div><div class="v">${p ? usd(p) : "…"}</div><div class="n">USDT</div></div>
