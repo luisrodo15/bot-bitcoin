@@ -459,7 +459,7 @@ b.forEach(x=>x.onclick=()=>v(x.dataset.n));let n=null;try{n=localStorage.getItem
 // Gráfica en vivo: el celular pide /vivo.json cada 5 segundos. El servidor consulta Binance (precio al momento
 // y velas de 1 minuto de las últimas 6 horas, guardadas un rato para no pedir de más) y le pone las líneas del bot.
 // Rangos: 6 horas (velas de 1 min), día (5 min), semana (1 h), mes (4 h), año (1 día).
-const RANGOS_V = { "6h": ["1m", 360, 30e3], dia: ["5m", 288, 60e3], semana: ["1h", 168, 300e3], mes: ["4h", 180, 600e3], "año": ["1d", 365, 1800e3] };
+const RANGOS_V = { "1D": ["1d", 120, 600e3], "6h": ["1m", 360, 30e3], dia: ["5m", 288, 60e3], semana: ["1h", 168, 300e3], mes: ["4h", 180, 600e3], "año": ["1d", 365, 1800e3] };
 let cacheVivo = {}, cacheVelas = {};
 async function vivo(rango) {
   if (!RANGOS_V[rango]) rango = "6h";
@@ -557,7 +557,7 @@ ${tarjetaFuturos()}
 <div class="e"><b>DINERO REAL.</b> Solo apuesta a la subida de ETH con 2x en margen aislado: entra cuando ETH cierra el día arriba de su promedio de 45 días, sale cuando cierra abajo, y si baja 5% desde la entrada cierra (stop).</div>
 ${st.error ? `<div class="e">${st.error}</div>` : ""}
 ${avisos.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${avisos.map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
-${graficaVivo().replace("compra/venta del bot", "compra/cierre del bot").replace('<span><b class="up">$</b> compra con tus pesos</span>', "").replace("precio de compra, meta y venta", "promedio de 45 días, compra y stop")}
+${graficaVivo().replace('<button data-r="6h" class="on">6 horas</button>', '<button data-r="1D" class="on">Velas 1D</button><button data-r="6h">6 horas</button>').replace('let R0="6h";const NOM={', 'let R0="1D";const NOM={"1D":"velas de 1 día",').replace("En vivo · últimas 6 horas", "En vivo · velas de 1 día (las del bot)").replace('localStorage.getItem("rgv")', 'localStorage.getItem("rgvf")').replace('localStorage.setItem("rgv"', 'localStorage.setItem("rgvf"').replace("compra/venta del bot", "compra/cierre del bot").replace('<span><b class="up">$</b> compra con tus pesos</span>', "").replace("precio de compra, meta y venta", "dónde va cada orden (compra, cierre y stop)")}
 ${ordenesFut()}
 
 </div></body></html>`;
