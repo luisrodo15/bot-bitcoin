@@ -221,7 +221,7 @@ async function usarUSDT(precio, ahora) {
   const monto = Math.floor(extra * 100) / 100; // la comisión sale del BNB
   const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
   const qty = +o.executedQty, quote = +o.cummulativeQuoteQty, pr = quote / qty, recibido = qty - sumaComision(o.fills, par.base), fee = await comisionUSDT(o, par.base, pr);
-  st.usdtLibre -= quote; st.baseLibre += recibido; adoptar(pr, ahora);
+  st.usdtLibre -= quote; st.baseLibre += recibido; adoptar(pr, ahora, true);
   const t = { t: ahora, tipo: "COMPRA", real: true, precio: pr, btc: +recibido.toFixed(10), usdt: quote, comision: +fee.toFixed(8), aporte: quote, motivo: `Compré con tu USDT: el precio bajó ${baja}% bajo tu promedio`, orden: o.orderId };
   st.trades.push(t); anotar(t); anotarAjuste(`Compré ${recibido.toFixed(8)} ${st.moneda} con ${quote.toFixed(2)} USDT tuyos a ${usd(pr, 2)} (bajó ${baja}% bajo tu promedio). Tu nuevo precio promedio es ${usd(st.compras[0].precio, 2)}.`);
   console.log(new Date().toISOString(), "COMPRA CON USDT TUYO", qty, "a", pr);
@@ -275,13 +275,13 @@ async function prepararAportes() {
     a.mxn = +(a.usdt * (r || st.mxn || 0)).toFixed(2); }
   if (L.every(a => a.mxn > 0)) st.aportes = L;
 }
-function adoptar(precio, ahora) {
+function adoptar(precio, ahora, callado) {
   const libre = Math.max(0, st.baseLibre - (st.caida ? st.caida.btc : 0)), valor = libre * precio, polvo = st.polvo || 0; let c = st.compras[0];
   st.polvo = 0; st.polvoCosto = 0;
   if (valor >= par.minNotional) {
     if (!c) { st.compras = [{ precio, btc: libre, costo: valor, t: ahora, adoptado: true }]; aportar(valor, "bitcoin que pusiste en Spot"); anotarAjuste(`Tomé ${libre} ${par.base} de tu Spot para manejarlos (valen ${valor.toFixed(2)} USDT).`); }
     else if (Math.abs(c.btc - libre) > 1e-8) { const dv = (libre - c.btc - polvo) * precio; if (Math.abs(dv) >= 1) aportar(dv, dv > 0 ? "bitcoin que pusiste en Spot" : "bitcoin que sacaste"); c.costo = libre > c.btc ? c.costo + (libre - c.btc) * precio : c.costo * libre / c.btc; if (libre > c.btc) c.precio = c.costo / libre; c.btc = libre;
-      if (dv >= 1) anotarAjuste(`Tomé ${(dv / precio).toFixed(8)} ${par.base} que pusiste en Spot (valen ${dv.toFixed(2)} USDT). Tu nuevo precio promedio es ${usd(c.precio, 2)}; vendo desde ${usd(c.precio * (1 + (+cfg.movimiento || 0) / 100), 2)}.`); else if (dv <= -1) anotarAjuste(`Sacaste ${(-dv / precio).toFixed(8)} ${par.base} de Spot (${(-dv).toFixed(2)} USDT); sigo con lo que quedó.`); } // si depositas más, la meta de +3% se calcula sobre el precio promedio
+      if (dv >= 1 && !callado) anotarAjuste(`Tomé ${(dv / precio).toFixed(8)} ${par.base} que pusiste en Spot (valen ${dv.toFixed(2)} USDT). Tu nuevo precio promedio es ${usd(c.precio, 2)}; vendo desde ${usd(c.precio * (1 + (+cfg.movimiento || 0) / 100), 2)}.`); else if (dv <= -1) anotarAjuste(`Sacaste ${(-dv / precio).toFixed(8)} ${par.base} de Spot (${(-dv).toFixed(2)} USDT); sigo con lo que quedó.`); } // si depositas más, la meta de +3% se calcula sobre el precio promedio
   } else {
     st.compras = [];
     if (valor > 1) st.aviso = `Tus ${libre} ${par.base} en Spot valen ${valor.toFixed(2)} USDT; Binance pide al menos ${par.minNotional} USDT para venderlos.`;
