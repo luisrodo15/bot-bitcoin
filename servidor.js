@@ -526,6 +526,26 @@ function tarjetaFuturos() {
 <div class="hgrid"><div><span>Precio ETH</span><b>${usd(f.precio)}</b></div><div><span>${f.pos ? "Ganancia abierta" : "Libre"}</span><b class="${f.pos ? (f.pos.pnl >= 0 ? "up" : "down") : ""}">${f.pos ? (f.pos.pnl >= 0 ? "+" : "−") + usd(Math.abs(f.pos.pnl)) : usd(f.disp)}</b></div><div><span>Operaciones cerradas</span><b class="${totC >= 0 ? "up" : "down"}">${cerradas.length} · ${totC >= 0 ? "+" : "−"}${usd(Math.abs(totC))}</b></div></div>
 <div class="n">${estado}</div>${f.error ? `<div class="e" style="margin-top:8px">${f.error}</div>` : ""}${f.aviso ? `<div class="b" style="margin-top:8px">${f.aviso}</div>` : ""}</div>`;
 }
+// Órdenes como en Binance: las que el bot tiene pendientes (abiertas) y las que ya hizo (historial).
+function ordenesFut() {
+  const f = st.fut || {}; if (f.promedio == null) return "";
+  const paso = 0.001, min = Math.max(f.reglas ? f.reglas.minNotional : 20, 0.001 * (f.precio || 1)), qty = f.precio ? (Math.ceil(min * 1.03 / f.precio / paso) * paso).toFixed(3) : "…";
+  const fila = (lado, tipo, cant, disparo, nota) => `<div class="or"><div class="oh"><b class="${lado === "Comprar" ? "up" : "down"}">${lado === "Comprar" ? "Comprar / Long" : "Vender / Cerrar"}</b><span>ETHUSDT Perpetuo · Aislado 2x</span></div>
+<div class="og"><div><span>Tipo</span>${tipo}</div><div><span>Cantidad</span>${cant} ETH</div><div><span>Se activa</span>${disparo}</div></div><div class="n">${nota}</div></div>`;
+  const abiertas = f.pos ? fila("Vender", "Stop Market", f.pos.eth, `ETH ≤ ${usd(f.pos.stop)}`, "Stop -5%: cierra en cuanto ETH toque ese precio.")
+      + fila("Vender", "Mercado", f.pos.eth, `cierre diario &lt; ${usd(f.promedio)}`, "Cierra a las 6 pm (México) si ETH cierra el día abajo de su promedio de 45 días.")
+    : f.bloq ? `<div class="n" style="padding:8px 0">Sin órdenes abiertas: salió por stop y espera a que ETH cierre un día abajo de ${usd(f.promedio)} para volver a poner su orden de compra.</div>`
+    : fila("Comprar", "Mercado", qty, `cierre diario &gt; ${usd(f.promedio)}`, `Compra a las 6 pm (México) si ETH cierra el día arriba de su promedio de 45 días. Ahora ETH está en ${usd(f.precio)}${f.precio ? ` (le falta ${((f.promedio / f.precio - 1) * 100).toFixed(1)}%)` : ""}.`);
+  // Ganancia de cada entrada: la del cierre que le siguió, o la ganancia abierta si sigue comprado.
+  const ops = f.ops || [], ganDe = o => { if (o.tipo !== "ENTRADA") return o.ganancia; const k = ops.indexOf(o), c = ops.slice(k + 1).find(x => x.tipo === "CIERRE"); return c ? c.ganancia : f.pos ? f.pos.pnl : null; };
+  const totG = ops.filter(o => o.tipo === "CIERRE").reduce((a, o) => a + (o.ganancia || 0), 0) + (f.pos ? f.pos.pnl : 0), mx = st.mxn || 0;
+  const hist = `<div class="og" style="margin:4px 0 2px"><div><span>Entradas</span>${ops.filter(o => o.tipo === "ENTRADA").length}</div><div><span>Ganadas / perdidas</span>${ops.filter(o => o.tipo === "CIERRE" && o.ganancia >= 0).length} / ${ops.filter(o => o.tipo === "CIERRE" && o.ganancia < 0).length}</div><div><span>Ganancia total</span><b class="${totG >= 0 ? "up" : "down"}">${totG >= 0 ? "+" : "−"}${usd(Math.abs(totG))} USDT${mx ? ` <small>($${usd(Math.abs(totG * mx))})</small>` : ""}</b></div></div>` + ops.slice(-20).reverse().map(o => `<div class="or"><div class="oh"><b class="${o.tipo === "ENTRADA" ? "up" : "down"}">${o.tipo === "ENTRADA" ? "Comprar / Long" : "Vender / Cerrar"}</b><span>${cuando(o.t)} · Ejecutada</span></div>
+<div class="og"><div><span>Precio</span>${usd(o.precio)}</div><div><span>Cantidad</span>${o.eth} ETH</div><div><span>${o.tipo === "ENTRADA" ? (ops.slice(ops.indexOf(o) + 1).some(x => x.tipo === "CIERRE") ? "Ganancia de esta entrada" : "Ganancia (abierta)") : "PnL"}</span>${ganDe(o) == null ? "—" : `<b class="${ganDe(o) >= 0 ? "up" : "down"}">${ganDe(o) >= 0 ? "+" : "−"}${usd(Math.abs(ganDe(o)))} USDT${mx ? ` <small>($${usd(Math.abs(ganDe(o) * mx))} MXN)</small>` : ""}</b>`}</div></div><div class="n">${o.motivo}</div></div>`).join("") || `<div class="n" style="padding:8px 0">Todavía no hay órdenes ejecutadas.</div>`;
+  return `<style>.or{border-top:1px solid var(--line);padding:9px 0}.oh{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:13.5px}.oh span{color:var(--mut);font-size:12px}.og{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 4px;font-size:13px}.og span{display:block;color:var(--mut);font-size:11px}.ot{display:flex;gap:6px;margin:8px 0 4px}.ot button{background:#0f1a36;color:var(--mut);border:1px solid var(--line);border-radius:99px;padding:5px 13px;font:inherit;font-size:12.5px;cursor:pointer}.ot button.on{background:var(--gold);color:#070d1c;border-color:var(--gold);font-weight:700}</style>
+<div class="k" style="margin-bottom:12px"><div class="l">Órdenes</div><div class="ot"><button class="on" data-o="oa">Abiertas (${f.pos ? 2 : f.bloq ? 0 : 1})</button><button data-o="oh">Historial (${(f.ops || []).length})</button></div>
+<div id="oa">${abiertas}</div><div id="oh" style="display:none">${hist}</div></div>
+<script>document.querySelectorAll(".ot button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".ot button").forEach(x=>x.classList.toggle("on",x===b));oa.style.display=b.dataset.o==="oa"?"":"none";oh.style.display=b.dataset.o==="oh"?"":"none"})</script>`;
+}
 function pagina() {
   const html = paginaCompleta(); if (!cfg.soloFuturos) return html;
   const f = st.fut || {}, i = html.indexOf('<body><div class="w">') + 21, mx = st.mxn || 0;
@@ -538,7 +558,8 @@ ${tarjetaFuturos()}
 ${st.error ? `<div class="e">${st.error}</div>` : ""}
 ${avisos.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${avisos.map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
 ${graficaVivo().replace("compra/venta del bot", "compra/cierre del bot").replace('<span><b class="up">$</b> compra con tus pesos</span>', "").replace("precio de compra, meta y venta", "promedio de 45 días, compra y stop")}
-<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Precio ETH</th><th>Ganancia</th></tr></thead><tbody>${filas || `<tr><td colspan="4" style="text-align:center;color:#8c9abb">Todavía no hay operaciones de futuros</td></tr>`}</tbody></table>
+${ordenesFut()}
+
 </div></body></html>`;
 }
 function paginaCompleta() {
