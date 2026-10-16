@@ -178,3 +178,6 @@ El usuario pidió una meta más corta. BTC último año: +1.0% stop 0.3 da +59.9
 ## intradia3.js (2026-10-16): estrategia intradía de ChatGPT, máx 3 operaciones al día
 Tendencia 1H + gatillo 15M (envolvente/pin bar en soporte, RSI saliendo de sobreventa, sobre VWAP), stop soporte − ATR, TP 1:1, salida a 4 velas, meta 8% / paro 15% diario, comisión 0.075% por lado, BTC último año (BTC −28%).
 Tal cual: 1 operación en todo el año (−0.2%). Versiones que operan más (sin zona de soporte, RSI 40-50): 89-523 ops, ganan 13-48% de las veces y pierden −16% a −62% en USD. Ninguna variante (R 0.5-2, stop 0.5-2 ATR, sin salida por tiempo) gana. El bot: +19.6% USD / +66.9% BTC. No se usa.
+
+## diaria1.js (2026-10-16): una operación cada día
+Cada día compra (al abrir o si baja 0.5-1%) y vende al +0.3/0.5/1/2% o al cierre del día; con y sin filtro de tendencia. BTC último año (−28%): las 24 variantes pierden en USD (−6% a −65%). Ganan 48-89% de los días, pero los días malos (se vende al cierre) se comen todo. Bot: +19.6% USD. No se usa.
