@@ -187,3 +187,4 @@ Cada día compra (al abrir o si baja 0.5-1%) y vende al +0.3/0.5/1/2% o al cierr
 
 - 2026-10-16 usdtacum.js: ganancia de cada venta guardada en USDT (como el bot ahora). Último año BTC +1.2%/stop 0.3% = +17.6% USDT total (26 ventas, ambas mitades positivas; holdear -28%). SOL: mejor +6.3% (+0.9%), pierde en la 1a mitad con todas las metas; holdear SOL -50%. Se queda BTC.
 - 2026-10-16 usdtacum.js otras monedas (último año, USDT guardado): BNB +17%..+23% (meta +1.2..+2%, 21-34 ventas, ambas mitades +); ETH/XRP/ADA/DOGE pierden casi todas (holdear -42%..-72%). Ninguna da ventas diarias.
+- 2026-10-16 unah.js (cuatroh.js en velas de 1h, el usuario pidió "temporalidad de entrada" swing 1h/4h): mejor RSI 1h 70/40 min1.2 +67.7% BTC con 11 ventas (vecinos 62-68%); 4h mejor +62.7% con 5. Bot actual +66.9% ~25 ventas. No se adopta (menos ventas).
