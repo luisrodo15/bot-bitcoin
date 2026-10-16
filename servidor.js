@@ -23,15 +23,16 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT", "acumularUSDT", "futuros", "soloFuturos"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT", "acumularUSDT", "futuros", "soloFuturos", "fundingPrueba"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 // Estas opciones solo valen mientras estén en ajustes.json; si se quitan de ahí, se apagan (no se quedan guardadas en config.json).
-for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT", "acumularUSDT", "futuros", "soloFuturos"]) if (AJ[k] === undefined) delete cfg[k];
+for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT", "acumularUSDT", "futuros", "soloFuturos", "fundingPrueba"]) if (AJ[k] === undefined) delete cfg[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
 const llave = cfg.real ? Real.leerLlave() : null;
 const REAL = !!llave;
 const cli = REAL ? Real.crearCliente(API, llave) : null;
+const Fund = require("./funding.js");
 const cliF = REAL && cfg.futuros ? Real.crearCliente(process.env.API_FUTUROS || "https://fapi.binance.com", llave) : null;
 const F_EST = path.join(DIR, REAL ? "estado-real.json" : "estado.json"), F_CSV = path.join(DIR, REAL ? "registro-real.csv" : "registro.csv");
 let st = leerJSON(F_EST, null) || Bot.estadoInicial(cfg);
@@ -89,7 +90,8 @@ async function revisar() {
   if (revisando) return; revisando = true;
   try {
     if (REAL) { try { await revisarReal(); } finally {
-      if (cliF) try { await Fut.revisar(cliF, cli, st, Date.now(), anotarAjuste); } catch (e) { (st.fut = st.fut || { ops: [], puesto: 0 }).error = "Futuros: " + e.message; console.error(new Date().toISOString(), "futuros", e.message); } } } else {
+      if (cliF) try { await Fut.revisar(cliF, cli, st, Date.now(), anotarAjuste); } catch (e) { (st.fut = st.fut || { ops: [], puesto: 0 }).error = "Futuros: " + e.message; console.error(new Date().toISOString(), "futuros", e.message); }
+      if (cfg.fundingPrueba) try { await Fund.revisar(st, Date.now()); st.fundError = null; } catch (e) { st.fundError = "Prueba funding: " + e.message; console.error(new Date().toISOString(), "funding", e.message); } } } else {
       const r = await fetch(urlPrecio(), { signal: AbortSignal.timeout(15000) });
       if (!r.ok) throw new Error("Binance respondió " + r.status);
       const precio = +(await r.json()).price;
@@ -562,6 +564,21 @@ function ordenesFut() {
 <div id="oa">${abiertas}</div><div id="oh" style="display:none">${hist}</div></div>
 <script>document.querySelectorAll(".ot button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".ot button").forEach(x=>x.classList.toggle("on",x===b));oa.style.display=b.dataset.o==="oa"?"":"none";oh.style.display=b.dataset.o==="oh"?"":"none"})</script>`;
 }
+// Prueba de funding (simulada): lo que habría cobrado con ~44 USDT, ETH fijo vs rotando a la moneda que paga más.
+function tarjetaFunding() {
+  if (!cfg.fundingPrueba) return "";
+  const f = st.fund; if (!f || !f.tasas) return `<div class="k" style="margin-bottom:12px"><div class="l">Prueba funding (simulada)</div><div class="n" style="margin-top:6px">${st.fundError || "Arrancando la prueba…"}</div></div>`;
+  const mx = st.mxn || 0, a = Fund.resumen(f), b = Fund.resumen(f, true), sg = x => (x >= 0 ? "+" : "−"), pc = t => sg(t) + Math.abs(t * 100).toFixed(4) + "%";
+  const anual = t => (t * 3 * 365 * 100).toFixed(1) + "%/año", falta = Math.max(0, f.prox - Date.now()), nom = s => s.replace("USDT", "");
+  const caja = (tit, r) => `<div><span>${tit}</span><b class="${r.neto >= 0 ? "up" : "down"}">${usd(r.valor)} USDT</b><small class="n" style="display:block">cobrado ${sg(r.cobrado)}${Math.abs(r.cobrado).toFixed(4)} · comisiones −${r.comision.toFixed(4)}<br>${r.alDia >= 0 ? "+" : "−"}${Math.abs(r.alDia).toFixed(4)}/día ≈ ${r.anual.toFixed(1)}%/año${mx ? ` · ${sg(r.neto)}$${usd(Math.abs(r.neto * mx))} MXN` : ""}</small></div>`;
+  const filas = [...f.cobros.map(c => ({ ...c, q: "ETH" })), ...f.rot.cobros.map(c => ({ ...c, q: "Rotando " + nom(c.sym) }))].sort((x, y) => y.t - x.t).slice(0, 12).map(c => `<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding:6px 0;font-size:13px"><span>${cuando(c.t)} · ${c.q}</span><span class="n">${pc(c.tasa)}</span><b class="${c.usdt >= 0 ? "up" : "down"}">${sg(c.usdt)}${Math.abs(c.usdt).toFixed(4)} USDT</b></div>`).join("") || `<div class="n" style="padding:6px 0">El primer cobro llega en ${Math.floor(falta / 36e5)} h ${Math.floor(falta % 36e5 / 6e4)} min.</div>`;
+  const tasas = Object.entries(f.tasas).sort((x, y) => y[1].tasa - x[1].tasa).map(([s, t]) => `<span style="display:inline-block;margin:3px 10px 0 0;font-size:12.5px">${nom(s)} <b class="${t.tasa >= 0 ? "up" : "down"}">${anual(t.tasa)}</b></span>`).join("");
+  return `<div class="k" style="margin-bottom:12px"><div class="l">Prueba funding · SIMULADA (sin dinero real)</div>
+<div class="n" style="margin-top:6px">Como si tuvieras ${Fund.CAPITAL} USDT: 0.009 ETH en Spot + corto igual en Futuros (sube o baja ETH = 0). Cobra cada 8 h: 2 am, 10 am y 6 pm. Empezó ${cuando(f.inicio)}</div>
+<div class="og" style="grid-template-columns:1fr 1fr;margin-top:8px">${caja("Solo ETH", a)}${caja(`Rotando (ahora ${nom(f.rot.sym)}, ${f.rot.cambios} cambios)`, b)}</div>
+<div class="n" style="margin-top:6px">Próximo cobro en ${Math.floor(falta / 36e5)} h ${Math.floor(falta % 36e5 / 6e4)} min. Tasa que paga cada moneda ahora (sobre la posición; sobre tus ${Fund.CAPITAL} USDT es como la mitad, porque parte queda de margen):</div><div>${tasas}</div>
+${st.fundError ? `<div class="e" style="margin-top:8px">${st.fundError}</div>` : ""}<div style="margin-top:8px">${filas}</div></div>`;
+}
 function pagina() {
   const html = paginaCompleta(); if (!cfg.soloFuturos) return html;
   const f = st.fut || {}, i = html.indexOf('<body><div class="w">') + 21, mx = st.mxn || 0;
@@ -574,7 +591,7 @@ ${tarjetaFuturos()}
 ${st.error ? `<div class="e">${st.error}</div>` : ""}
 ${avisos.length ? `<div class="k" style="margin-bottom:12px"><div class="l">Avisos del bot</div>${avisos.map(a => `<div class="n" style="margin-top:6px"><b style="color:#e7ecf7">${cuando(a.t)}</b> · ${a.msg}</div>`).join("")}</div>` : ""}
 ${graficaVivo().replace('<button data-r="6h" class="on">6 horas</button>', '<button data-r="1D" class="on">Velas 1D</button><button data-r="6h">6 horas</button>').replace('let R0="6h";const NOM={', 'let R0="1D";const NOM={"1D":"velas de 1 día",').replace("En vivo · últimas 6 horas", "En vivo · velas de 1 día (las del bot)").replace('localStorage.getItem("rgv")', 'localStorage.getItem("rgvf")').replace('localStorage.setItem("rgv"', 'localStorage.setItem("rgvf"').replace("compra/venta del bot", "compra/cierre del bot").replace('<span><b class="up">$</b> compra con tus pesos</span>', "").replace("precio de compra, meta y venta", "dónde va cada orden (compra, cierre y stop)")}
-${rendimientoFut()}${ordenesFut()}
+${rendimientoFut()}${ordenesFut()}${tarjetaFunding()}
 
 </div></body></html>`;
 }
