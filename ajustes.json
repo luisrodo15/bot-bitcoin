@@ -16,5 +16,6 @@
   "movimientoSube": 2.4,
   "comprarConMXN": false,
   "usarUSDT": true,
-  "caidaUSDT": 5
+  "caidaUSDT": 5,
+  "acumularUSDT": true
 }
