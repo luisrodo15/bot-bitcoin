@@ -223,7 +223,14 @@ async function usarUSDT(precio, ahora) {
 async function tasaMXN(ahora) { if (!st.mxnT || ahora - st.mxnT > 300e3) try { st.mxn = await cli.precio("USDTMXN"); st.mxnT = ahora; } catch (e) {} return st.mxn; }
 function aportar(usdt, motivo) { if (!st.aportes || !(Math.abs(usdt) >= 0.01)) return; st.aportes.push({ t: Date.now(), usdt: +usdt.toFixed(4), mxn: st.mxn ? +(usdt * st.mxn).toFixed(2) : 0, motivo }); }
 async function prepararAportes() {
-  if (st.aportes) return;
+  if (st.aportes) {
+    // v2: el BTC que pusiste antes de que existiera este conteo (lo adoptó el bot) entra a su costo de compra.
+    if (!st.aportesV2 && st.mxn) { st.aportesV2 = true;
+      const falta = st.compras.reduce((a, c) => a + c.costo, 0) + (st.usdtBot || 0) - (st.ganado || 0) - st.aportes.reduce((a, x) => a + x.usdt, 0);
+      if (falta >= 1) st.aportes.push({ t: Date.now(), usdt: +falta.toFixed(4), mxn: +(falta * st.mxn).toFixed(2), motivo: "bitcoin que pusiste antes" }); }
+    return;
+  }
+  st.aportesV2 = true;
   // El bot empezó con dinero real en BTC el 12-oct 21:00 UTC con 0.00008393 BTC (6.96 USDT); después, los USDT que pusiste.
   const inicio = Date.parse("2026-10-12T21:00:00Z"), L = [{ t: inicio, usdt: 6.96, motivo: "bitcoin con el que empezó el bot" }];
   for (const t of st.trades) if (t.real && t.t >= inicio && t.aporte > 0) L.push({ t: t.t, usdt: t.aporte, motivo: "USDT que pusiste" });
