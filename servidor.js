@@ -23,9 +23,9 @@ if (!cfg) { cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ajusteHoras: 6, pue
 cfg = { ...Bot.CONFIG_INICIAL, autoajuste: true, ...cfg };
 // ajustes.json viene de GitHub: así se cambia la moneda, el monto o el modo sin entrar al servidor.
 const AJ = leerJSON(F_AJ, {});
-for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
+for (const k of ["moneda", "real", "monto", "perdidaMax", "comision", "saldoInicial", "autoajuste", "ajusteHoras", "estrategia", "codicia", "miedo", "todoBTC", "reinvertir", "gananciasA", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT"]) if (AJ[k] !== undefined) cfg[k] = AJ[k];
 // Estas opciones solo valen mientras estén en ajustes.json; si se quitan de ahí, se apagan (no se quedan guardadas en config.json).
-for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT"]) if (AJ[k] === undefined) delete cfg[k];
+for (const k of ["gananciasA", "todoBTC", "reinvertir", "movimiento", "movimientoBaja", "movimientoStop", "movimientoSube", "comprarConMXN", "bnbMin", "bnbPesos", "usarUSDT", "caidaUSDT"]) if (AJ[k] === undefined) delete cfg[k];
 if (!Bot.MONEDAS.includes(cfg.moneda)) cfg.moneda = Bot.CONFIG_INICIAL.moneda;
 guardarJSON(F_CFG, cfg);
 
@@ -201,8 +201,10 @@ async function usarPesos(mxn, ahora) {
 //   y adoptar() lo suma con precio promedio. Así la meta de venta queda más cerca.
 // "aporte" = USDT tuyo que entró: no cuenta como BTC ganado por el bot.
 async function usarUSDT(precio, ahora) {
+  if (st.caida && st.caida.usdt > st.usdtLibre - (st.usdtBot || 0) + 0.01) { const fuera = st.caida.usdt - Math.max(0, st.usdtLibre - (st.usdtBot || 0)); aportar(-fuera, "USDT que sacaste"); st.caida.usdt = +(st.caida.usdt - fuera).toFixed(8); }
   if ((st.usdtBot || 0) > st.usdtLibre + 0.01) { aportar(st.usdtLibre - st.usdtBot, "USDT que sacaste"); st.usdtBot = +st.usdtLibre.toFixed(8); } // si sacaste USDT
-  const extra = Math.floor((st.usdtLibre - (st.usdtBot || 0)) * 100) / 100;
+  const extra = Math.floor((st.usdtLibre - (st.usdtBot || 0) - (st.caida ? st.caida.usdt : 0)) * 100) / 100;
+  if (cfg.caidaUSDT && (st.caida || enBajada())) { await caidaUSDT(extra, precio, ahora); return; }
   if (!(extra >= 1)) return;
   if (!st.compras.length) {
     st.usdtBot = +((st.usdtBot || 0) + extra).toFixed(8); st.aportePend = +((st.aportePend || 0) + extra).toFixed(8); aportar(extra, "USDT que pusiste");
@@ -218,6 +220,34 @@ async function usarUSDT(precio, ahora) {
   const t = { t: ahora, tipo: "COMPRA", real: true, precio: pr, btc: +recibido.toFixed(10), usdt: quote, comision: +fee.toFixed(8), aporte: quote, motivo: `Compré con tu USDT: el precio bajó ${baja}% bajo tu promedio`, orden: o.orderId };
   st.trades.push(t); anotar(t); anotarAjuste(`Compré ${recibido.toFixed(8)} ${st.moneda} con ${quote.toFixed(2)} USDT tuyos a ${usd(pr, 2)} (bajó ${baja}% bajo tu promedio). Tu nuevo precio promedio es ${usd(st.compras[0].precio, 2)}.`);
   console.log(new Date().toISOString(), "COMPRA CON USDT TUYO", qty, "a", pr);
+}
+// caidaUSDT (%): en tendencia de bajada el bot no compra con su dinero, pero con el USDT que TÚ pongas en Spot compra BTC
+// cada vez que el precio baje ese % (desde que llegó tu USDT o desde la última compra así). Ese BTC queda "guardado":
+// el bot no lo vende en la bajada; cuando la tendencia vuelve a subir y el bot tiene su BTC, lo junta con el suyo (precio promedio).
+function enBajada() { const s = st.senales; return !!s && s.e20 != null && (s.indice <= (cfg.miedo ?? Sen.DEF.miedo) || s.e20 <= s.e50 || !!alerta()); }
+async function caidaUSDT(extra, precio, ahora) {
+  const c = st.caida || (st.caida = { usdt: 0, ref: precio, btc: 0, costo: 0 });
+  if (extra >= 1) { c.usdt = +(c.usdt + extra).toFixed(8); if (!c.btc) c.ref = Math.max(c.ref, precio); aportar(extra, "USDT que pusiste");
+    anotarAjuste(`Tomé ${extra.toFixed(2)} USDT de tu Spot: el BTC va de bajada, así que compro con ellos cada vez que baje ${cfg.caidaUSDT}% (primera compra en ${usd(c.ref * (1 - cfg.caidaUSDT / 100), 2)}).`); }
+  if (!enBajada() && st.compras.length) { // la tendencia volvió a subir: el bot junta lo guardado con su BTC y usa el USDT que quedó
+    const k = st.compras[0];
+    if (c.btc) { k.costo += c.costo; k.btc = +(k.btc + c.btc).toFixed(10); k.precio = k.costo / k.btc; }
+    const resto = c.usdt; st.caida = null; st.aportePend = 0;
+    if (resto >= 0.01) aportar(-resto, "USDT tuyo que sobró (se vuelve a contar cuando se compre)"); // usarUSDT lo trata como USDT nuevo
+    anotarAjuste(`La tendencia volvió a subir: junté tu BTC comprado en la bajada con el del bot (precio promedio ${usd(k.precio, 2)}).${resto >= 1 ? ` Tus ${resto.toFixed(2)} USDT que sobraron los uso cuando baje 2% bajo el promedio.` : ""}`); return; }
+  if (!enBajada() && !c.btc && !st.compras.length) { // subió antes de comprar nada: el USDT se va con el bot a su siguiente compra
+    st.usdtBot = +((st.usdtBot || 0) + c.usdt).toFixed(8); st.aportePend = +((st.aportePend || 0) + c.usdt).toFixed(8); st.caida = null; return; }
+  const meta = c.ref * (1 - cfg.caidaUSDT / 100);
+  if (c.usdt < par.minNotional * 1.1) { if (c.usdt >= 1) st.aviso = `Tienes ${c.usdt.toFixed(2)} USDT para comprar en la bajada: Binance pide al menos ${par.minNotional} USDT por compra; los junto hasta llegar.`; return; }
+  if (precio > meta) { st.aviso = `BTC va de bajada: con tus ${c.usdt.toFixed(2)} USDT compro si baja a ${usd(meta, 2)} (-${cfg.caidaUSDT}%).`; return; }
+  // escalonado: parte el USDT en hasta 3 compras (cada una de al menos el mínimo de Binance); una parte en cada escalón de -X%
+  const partes = Math.max(1, Math.min(3, Math.floor(c.usdt / (par.minNotional * 1.1)))), monto = Math.floor((partes > 1 ? c.usdt / partes : c.usdt * 0.998) * 100) / 100;
+  const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
+  const qty = +o.executedQty, quote = +o.cummulativeQuoteQty, pr = quote / qty, recibido = qty - sumaComision(o.fills, par.base), fee = await comisionUSDT(o, par.base, pr);
+  st.usdtLibre -= quote; c.usdt = +Math.max(0, c.usdt - quote).toFixed(8); c.btc = +(c.btc + recibido).toFixed(10); c.costo += quote + fee - sumaComision(o.fills, par.base) * pr; c.ref = pr;
+  const t = { t: ahora, tipo: "COMPRA", real: true, caida: true, precio: pr, btc: +recibido.toFixed(10), usdt: quote, comision: +fee.toFixed(8), motivo: `Compré con tu USDT en la bajada (-${cfg.caidaUSDT}%)`, orden: o.orderId };
+  st.trades.push(t); anotar(t); anotarAjuste(`Compré ${recibido.toFixed(8)} ${st.moneda} con ${quote.toFixed(2)} USDT tuyos a ${usd(pr, 2)} en la bajada. Los guardo hasta que la tendencia vuelva a subir.`);
+  console.log(new Date().toISOString(), "COMPRA EN CAIDA", qty, "a", pr);
 }
 // Pesos: lo que has puesto en el bot (cada aporte con el tipo de cambio de ese momento) contra lo que vale ahora.
 async function tasaMXN(ahora) { if (!st.mxnT || ahora - st.mxnT > 300e3) try { st.mxn = await cli.precio("USDTMXN"); st.mxnT = ahora; } catch (e) {} return st.mxn; }
@@ -240,14 +270,14 @@ async function prepararAportes() {
   if (L.every(a => a.mxn > 0)) st.aportes = L;
 }
 function adoptar(precio, ahora) {
-  const valor = st.baseLibre * precio, polvo = st.polvo || 0; let c = st.compras[0];
+  const libre = Math.max(0, st.baseLibre - (st.caida ? st.caida.btc : 0)), valor = libre * precio, polvo = st.polvo || 0; let c = st.compras[0];
   st.polvo = 0; st.polvoCosto = 0;
   if (valor >= par.minNotional) {
-    if (!c) { st.compras = [{ precio, btc: st.baseLibre, costo: valor, t: ahora, adoptado: true }]; aportar(valor, "bitcoin que pusiste en Spot"); anotarAjuste(`Tomé ${st.baseLibre} ${par.base} de tu Spot para manejarlos (valen ${valor.toFixed(2)} USDT).`); }
-    else if (Math.abs(c.btc - st.baseLibre) > 1e-8) { const dv = (st.baseLibre - c.btc - polvo) * precio; if (Math.abs(dv) >= 1) aportar(dv, dv > 0 ? "bitcoin que pusiste en Spot" : "bitcoin que sacaste"); c.costo = st.baseLibre > c.btc ? c.costo + (st.baseLibre - c.btc) * precio : c.costo * st.baseLibre / c.btc; if (st.baseLibre > c.btc) c.precio = c.costo / st.baseLibre; c.btc = st.baseLibre; } // si depositas más, la meta de +3% se calcula sobre el precio promedio
+    if (!c) { st.compras = [{ precio, btc: libre, costo: valor, t: ahora, adoptado: true }]; aportar(valor, "bitcoin que pusiste en Spot"); anotarAjuste(`Tomé ${libre} ${par.base} de tu Spot para manejarlos (valen ${valor.toFixed(2)} USDT).`); }
+    else if (Math.abs(c.btc - libre) > 1e-8) { const dv = (libre - c.btc - polvo) * precio; if (Math.abs(dv) >= 1) aportar(dv, dv > 0 ? "bitcoin que pusiste en Spot" : "bitcoin que sacaste"); c.costo = libre > c.btc ? c.costo + (libre - c.btc) * precio : c.costo * libre / c.btc; if (libre > c.btc) c.precio = c.costo / libre; c.btc = libre; } // si depositas más, la meta de +3% se calcula sobre el precio promedio
   } else {
     st.compras = [];
-    if (valor > 1) st.aviso = `Tus ${st.baseLibre} ${par.base} en Spot valen ${valor.toFixed(2)} USDT; Binance pide al menos ${par.minNotional} USDT para venderlos.`;
+    if (valor > 1) st.aviso = `Tus ${libre} ${par.base} en Spot valen ${valor.toFixed(2)} USDT; Binance pide al menos ${par.minNotional} USDT para venderlos.`;
   }
 }
 async function comprarReal(h, precio, ahora) {
@@ -255,7 +285,7 @@ async function comprarReal(h, precio, ahora) {
   // con todoBTC recompra con lo que sacó al vender; con reinvertir usa el monto más lo que ya ganó (o menos lo que perdió)
   const tope = TODO && st.usdtBot > 0 ? st.usdtBot : cfg.gananciasA === "BTC" ? Math.max(0, Math.floor((+cfg.monto + Math.min(0, (st.ganado || 0) - (st.usdtPasado || 0) - (st.porPasar || 0))) * 100) / 100)
     : cfg.reinvertir ? Math.max(0, Math.floor((+cfg.monto + (st.ganado || 0)) * 100) / 100) : +cfg.monto;
-  const monto = SENT ? Math.min(tope, Math.floor(st.usdtLibre * 0.998 * 100) / 100) : +cfg.monto;
+  const monto = SENT ? Math.min(tope, Math.floor((st.usdtLibre - (st.caida ? st.caida.usdt : 0)) * 0.998 * 100) / 100) : +cfg.monto;
   if (monto < par.minNotional * 1.15) { st.aviso = `El monto por compra (${monto} USDT) es muy chico: Binance pide más de ${par.minNotional} USDT y debe alcanzar para vender aunque baje.`; return; }
   if (st.usdtLibre < monto || monto <= 0) { st.aviso = `Quería comprar pero solo hay ${st.usdtLibre.toFixed(2)} USDT libres en Spot (necesita ${monto}).`; return; }
   const o = await cli.orden({ symbol: par.simbolo, side: "BUY", quoteOrderQty: String(monto) });
@@ -466,9 +496,9 @@ function pagina() {
   // Lo que le importa al usuario: cuánto BTC tiene y cuánto BTC le ha ganado el bot (cada venta comparada con su recompra).
   let vendido = null, ganBtc = 0, vueltas = 0;
   for (const t of st.trades) { if (!t.real || t.t < Date.parse("2026-10-12T21:00:00Z") || t.tipo === "A BITCOIN") continue;
-    if (t.tipo !== "COMPRA") vendido = (vendido || 0) + t.btc; else if (vendido != null) { ganBtc += (t.recibido ?? t.btc) + (t.sobra || 0) / t.precio - (t.aporte || 0) / t.precio - vendido; // Binance compra en pasos de 0.00001 BTC: lo que no alcanza se queda en USDT para la siguiente
+    if (t.caida) continue; if (t.tipo !== "COMPRA") vendido = (vendido || 0) + t.btc; else if (vendido != null) { ganBtc += (t.recibido ?? t.btc) + (t.sobra || 0) / t.precio - (t.aporte || 0) / t.precio - vendido; // Binance compra en pasos de 0.00001 BTC: lo que no alcanza se queda en USDT para la siguiente
       vendido = null; vueltas++; } }
-  const tuyo = st.compras.reduce((a, c) => a + c.btc, 0) + (st.polvo || 0), enUsdt = TODO ? st.usdtBot || 0 : 0;
+  const tuyo = st.compras.reduce((a, c) => a + c.btc, 0) + (st.polvo || 0) + (st.caida ? st.caida.btc : 0), enUsdt = TODO ? (st.usdtBot || 0) + (st.caida ? st.caida.usdt : 0) : 0;
   const mx = st.mxn || 0, puesto = (st.aportes || []).reduce((a, x) => a + (x.mxn || 0), 0), valorMX = (tuyo * p + enUsdt) * mx, ganMX = valorMX - puesto;
   const botMX = ganBtc * p * mx, pesos = x => "$" + usd(Math.abs(x), 2), sg2 = x => (x >= 0 ? "+" : "−") + pesos(x);
   const vendidas = st.trades.filter(t => t.real && t.ganancia != null), totV = vendidas.reduce((a, t) => a + t.ganancia, 0);
