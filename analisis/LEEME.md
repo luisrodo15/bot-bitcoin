@@ -232,3 +232,7 @@ asegura.js (idea nueva): asegurar ganancia moviendo el stop a "sin pérdida" tra
 Siempre ETH: 17.9/24.9/0.4/5.3/8.5/2.3. Siempre BTC: 11.2/20.3/2.6/5.1/7.8/2.7. BNB y SOL pierden años.
 Mejor: rotar entre 11 monedas a la de mayor funding promedio de 21 días: 12.3/30.0/3.1/6.6/8.7/2.4 (positivo todos los años). Promedios de 3-7 días cambian demasiado y pierden; esperar a tasas altas (>11% o >22%/año) deja el dinero parado y gana menos.
 Conclusión: en 2025-26 el funding paga poco (~2-3%/año del capital). Hoy no le gana a una cuenta en pesos al 13-15%.
+
+## dca.js (2026-10-17): DCA semanal 10 USDT en BTC y ETH, normal vs "inteligente" (comprar más con miedo<=25 o abajo de SMA200)
+BTC normal: 2018-hoy +396% sobre lo aportado (puso 4490, vale ~22.3k); 2021-22 −49%; 2025-hoy −5%. ETH normal +340%.
+Las versiones "inteligentes" ganan MENOS (BTC +359 a +379%): guardar USDT esperando caídas deja dinero sin comprar en las subidas. DCA normal es lo mejor; se hace gratis con Compra recurrente de Binance.
