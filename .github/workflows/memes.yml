@@ -1,0 +1,31 @@
+# Baja velas diarias (todo el historial) de memecoins y otras monedas de Binance. Guarda en la rama "memes".
+name: memes
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/memes.yml"]
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bajar velas
+        run: |
+          mkdir -p out
+          for S in PEPEUSDT SHIBUSDT WIFUSDT BONKUSDT FLOKIUSDT DOGEUSDT TRXUSDT LINKUSDT AVAXUSDT LTCUSDT; do
+            T=1500000000000; : > out/$S-1d.csv
+            for k in 1 2 3 4 5; do
+              curl -sfL "https://data-api.binance.vision/api/v3/klines?symbol=$S&interval=1d&limit=1000&startTime=$T" -o tmp.json || break
+              N=$(jq length tmp.json); [ "$N" = "0" ] && break
+              jq -r '.[] | [.[0], .[1], .[2], .[3], .[4]] | join(",")' tmp.json >> out/$S-1d.csv
+              T=$(( $(jq '.[-1][0]' tmp.json) + 86400000 )); [ "$N" -lt 1000 ] && break
+            done
+            echo "$S $(wc -l < out/$S-1d.csv)"
+          done
+      - name: Guardar en la rama memes
+        run: |
+          cd out
+          git init -q -b memes && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Datos memes $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" memes
