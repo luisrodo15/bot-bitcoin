@@ -1,0 +1,30 @@
+# Baja el historial de funding (cada 8 h) de futuros USDⓈ-M de varias monedas (data.binance.vision). Guarda en la rama "funding".
+name: funding
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/funding.yml"]
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bajar funding
+        run: |
+          mkdir -p out tmp
+          MESES=$(python3 -c "import datetime as d
+          t=d.date.today().replace(day=1);x=d.date(2019,9,1);m=[]
+          while x<t: m.append(x.strftime('%Y-%m')); x=(x+d.timedelta(days=32)).replace(day=1)
+          print(' '.join(m))")
+          for S in BTCUSDT ETHUSDT BNBUSDT XRPUSDT SOLUSDT DOGEUSDT ADAUSDT LINKUSDT LTCUSDT TRXUSDT AVAXUSDT; do
+            : > out/$S.csv
+            for m in $MESES; do curl -sfL -o tmp/z.zip "https://data.binance.vision/data/futures/um/monthly/fundingRate/$S/$S-fundingRate-$m.zip" && unzip -p tmp/z.zip | grep -E '^[0-9]' >> out/$S.csv || true; done
+            echo "$S $(wc -l < out/$S.csv) $(tail -1 out/$S.csv)"
+          done
+      - name: Guardar en la rama funding
+        run: |
+          cd out
+          git init -q -b funding && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Funding $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" funding
