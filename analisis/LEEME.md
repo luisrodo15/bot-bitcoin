@@ -201,3 +201,9 @@ Cada día compra (al abrir o si baja 0.5-1%) y vende al +0.3/0.5/1/2% o al cierr
 ## lateral.js / lat2.js (2026-10-17): filtros de mercado lateral en Futuros ETH
 Idea de un comentario de YouTube (los bots fallan en mercado de lado). Probé ADX 15-30, eficiencia de Kaufman, Choppiness, inclinación de la SMA45 y banda sobre la SMA45 como filtro de entrada (estrategia viva, 1.4x, stop 4.3%, desde 2018).
 ADX, eficiencia, inclinación y banda: peores o pierden algún periodo. Choppiness 14 < 61.8 fue mejor en 4/5 (+5 a +9 puntos), pero de 18 vecinos (periodo 10/14/20, umbral 57-65) solo 4 son robustos: suerte, no se adopta. Se queda la estrategia actual.
+
+## forex.js (2026-10-17): carry y tendencia en forex y oro (datos: rama "forex", workflow forex.yml)
+Diario desde 2008, sin apalancamiento, swap = diferencia de tasas a 3 meses (FRED) menos 1.5%/año del broker, spread por operación.
+Lo mejor: carry largo MXNJPY +3.8%/año (caída máx 38%) y largo USDJPY +3.5%/año (29%); oro solo largo arriba de SMA200 +3.0%/año (28%).
+Peso contra dólar (corto USDMXN) -2.2%/año. Tendencia largo/corto pierde en todos los pares. Aun sin comisión del broker, lo mejor es ~5%/año con caídas de 26-36%.
+Todos pierden en varios periodos. Conclusión: forex/oro no conviene frente al bot de Futuros ETH.
