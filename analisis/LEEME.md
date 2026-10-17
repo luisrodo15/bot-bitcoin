@@ -218,3 +218,7 @@ Acciones: Nasdaq +2 a +3 USDT/año (poco), S&P pierde un periodo. Conclusión: s
 Tendencia (la del bot ETH) en TSLA, NVDA, AAPL, MSFT, META, GOOGL, AMZN, QQQ, MSTR, COIN: todas pierden algún periodo.
 Estrategia distinta "comprar la caída" (RSI2 < U arriba de SMA200, vende al cerrar arriba de SMA5, stop 4.3%): la única consistente es NVDA (RSI2<5 y <20 positivas en los 5 periodos; <10 casi), ~+30 USDT en 8 años con 22 USDT por entrada (~3-4 USDT/año, ~20 entradas/año). Las demás pierden algún periodo.
 No se pudo leer exchangeInfo de Binance desde GitHub (bloqueo EUA): falta confirmar símbolo NVDA en futuros y su mínimo.
+
+## acc2.js (2026-10-17): estrategias propias de acciones (NVDA AAPL MSFT META GOOGL AMZN TSLA, QQQ)
+Rompimiento de máximos (1 año / 3 meses), fin de mes y SMA50>SMA200: todas pierden algún periodo.
+Rotación mensual a la acción más fuerte (subida de N días, arriba de su SMA200), una sola posición, 22 USDT, stop 4.3%: positiva en total con todos los N (42-189 días) y ambos stops (4.3%/8%); N=84 gana en los 5 periodos (+131 USDT). Mucho viene de TSLA 2019-21; sin TSLA ~+31 a +46 USDT en 8 años (~4-6/año). Mejor candidata para un segundo bot de acciones.
