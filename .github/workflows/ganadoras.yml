@@ -1,0 +1,43 @@
+# Baja velas diarias de TODAS las monedas de Futuros USDⓈ-M (incluye las que ya quitaron) desde 2023, del archivo público data.binance.vision.
+# Guarda un CSV por moneda en la rama "ganadoras". Para analisis/ganadoras.js.
+name: ganadoras
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/ganadoras.yml"]
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Lista de monedas
+        run: |
+          B="https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?delimiter=/&prefix=data/futures/um/monthly/klines/"
+          M=""; : > syms.txt
+          while :; do
+            curl -sfL "$B&marker=$M" -o l.xml
+            grep -o '<Prefix>data/futures/um/monthly/klines/[A-Z0-9]*USDT/</Prefix>' l.xml | sed 's#.*klines/##; s#/<.*##' >> syms.txt
+            grep -q '<IsTruncated>true' l.xml || break
+            M=$(grep -o '<NextMarker>[^<]*' l.xml | sed 's/<NextMarker>//'); [ -z "$M" ] && M=$(grep -o '<Prefix>[^<]*</Prefix>' l.xml | tail -1 | sed 's#<[^>]*>##g')
+          done
+          sort -u syms.txt -o syms.txt; wc -l syms.txt
+      - name: Bajar velas
+        run: |
+          mkdir -p out z
+          meses=$(python3 -c "print(' '.join(f'{y}-{m:02d}' for y in range(2023,2027) for m in range(1,13) if f'{y}-{m:02d}'<='2026-09'))")
+          for S in $(cat syms.txt); do for m in $meses; do echo "$S $m"; done; done > tareas.txt
+          wc -l tareas.txt
+          cat tareas.txt | xargs -P 32 -n 2 sh -c 'curl -sf "https://data.binance.vision/data/futures/um/monthly/klines/$0/1d/$0-1d-$1.zip" -o z/$0_$1.zip || true'
+          for S in $(cat syms.txt); do ls z/${S}_*.zip >/dev/null 2>&1 || continue
+            for f in $(ls z/${S}_*.zip | sort); do unzip -p $f; done | grep -E '^[0-9]' | cut -d, -f1-6 > out/$S.csv
+            [ -s out/$S.csv ] || rm -f out/$S.csv
+          done
+          ls out | wc -l
+      - name: Guardar en la rama ganadoras
+        run: |
+          cd out
+          git init -q -b ganadoras && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Futuros diarios $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ganadoras
