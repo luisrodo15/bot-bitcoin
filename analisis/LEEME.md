@@ -207,3 +207,9 @@ Diario desde 2008, sin apalancamiento, swap = diferencia de tasas a 3 meses (FRE
 Lo mejor: carry largo MXNJPY +3.8%/año (caída máx 38%) y largo USDJPY +3.5%/año (29%); oro solo largo arriba de SMA200 +3.0%/año (28%).
 Peso contra dólar (corto USDMXN) -2.2%/año. Tendencia largo/corto pierde en todos los pares. Aun sin comisión del broker, lo mejor es ~5%/año con caídas de 26-36%.
 Todos pierden en varios periodos. Conclusión: forex/oro no conviene frente al bot de Futuros ETH.
+
+## monedas.js (2026-10-17): estrategia viva de Futuros (SMA N + cortos en bajada fuerte, stop 4.3%, posición fija 22 USDT) en otras monedas
+Datos: rama diarios + rama memes (workflow memes.yml) + Yahoo S&P/Nasdaq. SMA 30/45/60.
+Ganan en todos los periodos con las 3 SMA: solo ETH (SMA45 total +176.6 USDT desde 2018) y BTC (+81 a +151). ADA casi (SMA30 pierde 2025-hoy).
+Memecoins (PEPE, SHIB, WIF, FLOKI, DOGE): ganaron en 2023-25 y casi todas pierden 2025-hoy; BONK positivo pero solo 2 años y poco. TRX, LINK, AVAX, LTC, BNB, SOL, XRP pierden algún periodo.
+Acciones: Nasdaq +2 a +3 USDT/año (poco), S&P pierde un periodo. Conclusión: seguir en ETH; BTC sería la segunda cuando haya ~45 USDT de margen (mínimo 0.001 BTC).
