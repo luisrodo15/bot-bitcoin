@@ -1,0 +1,25 @@
+# Baja historial diario de forex, oro y tasas de interés (Yahoo y FRED) para analizar carry y tendencia. Guarda en la rama "forex".
+name: forex
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/forex.yml"]
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bajar datos
+        run: |
+          mkdir -p out
+          for Y in MXN=X JPY=X EURUSD=X MXNJPY=X GC=F; do N=$(echo $Y | tr -d '=' ); curl -sfL -A "Mozilla/5.0" "https://query1.finance.yahoo.com/v8/finance/chart/$Y?period1=1199145600&period2=9999999999&interval=1d" -o out/yahoo-$N.json || true; echo "$Y $(wc -c < out/yahoo-$N.json 2>/dev/null)"; done
+          # Tipos de cambio y tasas: FRED (diarias y mensuales)
+          for F in DEXMXUS DEXJPUS DEXUSEU DFF ECBDFR IRSTCI01MXM156N IRSTCI01JPM156N IR3TIB01MXM156N IR3TIB01JPM156N IR3TIB01USM156N IRLTLT01MXM156N; do curl -sfL "https://fred.stlouisfed.org/graph/fredgraph.csv?id=$F" -o out/$F.csv || true; echo "$F $(wc -l < out/$F.csv 2>/dev/null)"; done
+          date -u +%FT%TZ > out/hora.txt
+      - name: Guardar en la rama forex
+        run: |
+          cd out
+          git init -q -b forex && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Datos forex $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" forex
