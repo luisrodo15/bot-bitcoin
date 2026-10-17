@@ -213,3 +213,8 @@ Datos: rama diarios + rama memes (workflow memes.yml) + Yahoo S&P/Nasdaq. SMA 30
 Ganan en todos los periodos con las 3 SMA: solo ETH (SMA45 total +176.6 USDT desde 2018) y BTC (+81 a +151). ADA casi (SMA30 pierde 2025-hoy).
 Memecoins (PEPE, SHIB, WIF, FLOKI, DOGE): ganaron en 2023-25 y casi todas pierden 2025-hoy; BONK positivo pero solo 2 años y poco. TRX, LINK, AVAX, LTC, BNB, SOL, XRP pierden algún periodo.
 Acciones: Nasdaq +2 a +3 USDT/año (poco), S&P pierde un periodo. Conclusión: seguir en ETH; BTC sería la segunda cuando haya ~45 USDT de margen (mínimo 0.001 BTC).
+
+## rsi2.js + acciones en monedas.js (2026-10-17): futuros de acciones (Binance), datos Yahoo (rama acciones)
+Tendencia (la del bot ETH) en TSLA, NVDA, AAPL, MSFT, META, GOOGL, AMZN, QQQ, MSTR, COIN: todas pierden algún periodo.
+Estrategia distinta "comprar la caída" (RSI2 < U arriba de SMA200, vende al cerrar arriba de SMA5, stop 4.3%): la única consistente es NVDA (RSI2<5 y <20 positivas en los 5 periodos; <10 casi), ~+30 USDT en 8 años con 22 USDT por entrada (~3-4 USDT/año, ~20 entradas/año). Las demás pierden algún periodo.
+No se pudo leer exchangeInfo de Binance desde GitHub (bloqueo EUA): falta confirmar símbolo NVDA en futuros y su mínimo.

@@ -16,6 +16,6 @@ function corre(C, N, a, b) {
 console.log("USDT ganados con posición fija de 22 USDT (pérdida máx ~1 por entrada). Periodos: 2018-19 | 19-21 | 21-23 | 23-25 | 25-hoy");
 const yh = n => { const r = JSON.parse(fs.readFileSync(__dirname + "/diarios/yahoo-" + n + ".json")).chart.result[0], q = r.indicators.quote[0]; return r.timestamp.map((t, i) => [t * 1e3, q.open[i], q.high[i], q.low[i], q.close[i]]).filter(x => x[4] > 0); };
 for (const m of (process.env.MON || "ETH BTC BNB SOL XRP DOGE ADA").split(" ")) {
-  const C = /^(GSPC|IXIC)$/.test(m) ? yh(m) : fs.readFileSync(__dirname + `/diarios/${m}USDT-1d.csv`, "utf8").trim().split("\n").map(l => l.split(",").slice(0, 5).map(Number));
+  const C = /^(GSPC|IXIC|TSLA|NVDA|AAPL|MSFT|META|GOOGL|AMZN|QQQ|SPY|MSTR|COIN)$/.test(m) ? yh(m) : fs.readFileSync(__dirname + `/diarios/${m}USDT-1d.csv`, "utf8").trim().split("\n").map(l => l.split(",").slice(0, 5).map(Number));
   for (const N of [30, 45, 60]) { const r = per.map(([a, b]) => corre(C, N, a, b)), tot = r.reduce((a, x) => a + x, 0);
     console.log(`${m} SMA${N}`.padEnd(11), r.map(x => x.toFixed(1).padStart(7)).join(""), ` total ${tot.toFixed(1)}`, r.every(x => x >= 0) ? "" : " (pierde algún periodo)"); } }
