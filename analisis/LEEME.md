@@ -226,3 +226,9 @@ Rotación mensual a la acción más fuerte (subida de N días, arriba de su SMA2
 ## Revisión diaria 2026-10-17
 Datos al cierre del 16-oct (rama memes trae ETH/BTC al día; diarios iba al 14). vecprof2 (1.4x): SMA45 + cortos sigue positivo en los 5 periodos y mejor que solo largo en 4/5. ETH 2423.5 < SMA45 2566 y > SMA200 2146: sin señal, espera.
 asegura.js (idea nueva): asegurar ganancia moviendo el stop a "sin pérdida" tras +10/15/20/30%, o stop que sigue al precio a 10-25% del mejor precio. Con posición fija 22 USDT: actual +165.2 USDT; ninguna variante gana en todos los periodos y todas bajan el total (mejor: sin pérdida tras +30% = +163.1). La estrategia gana por pocas entradas grandes; cortarlas antes resta. No se adopta.
+
+## fundsim.js (2026-10-17): rendimiento en USDT/USDC con funding neutral (Spot + corto igual), datos rama "funding" (workflow funding.yml)
+% al año sobre el capital (posición + mitad de margen), costo conservador 0.25% por entrada/salida. Años 2020|21|22|23|24|25-sep26.
+Siempre ETH: 17.9/24.9/0.4/5.3/8.5/2.3. Siempre BTC: 11.2/20.3/2.6/5.1/7.8/2.7. BNB y SOL pierden años.
+Mejor: rotar entre 11 monedas a la de mayor funding promedio de 21 días: 12.3/30.0/3.1/6.6/8.7/2.4 (positivo todos los años). Promedios de 3-7 días cambian demasiado y pierden; esperar a tasas altas (>11% o >22%/año) deja el dinero parado y gana menos.
+Conclusión: en 2025-26 el funding paga poco (~2-3%/año del capital). Hoy no le gana a una cuenta en pesos al 13-15%.
