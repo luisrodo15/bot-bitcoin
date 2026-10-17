@@ -240,3 +240,6 @@ Las versiones "inteligentes" ganan MENOS (BTC +359 a +379%): guardar USDT espera
 ## rachas2.js (2026-10-17, usuario: "no quiero que pierdas 11 veces seguido")
 Reglas para cortar rachas: pausa de D días tras K pérdidas seguidas (K 3-5, D 10-30), pedir señal más fuerte (+2/+4%) tras K pérdidas, o siempre (+1/+2/+3%).
 Actual: +165.2 USDT, racha máx 11. "Pausa 20 días tras 4 pérdidas" = +166.2 y racha 7, pero los vecinos (17/23/26 días) dan racha 10-16 y menos ganancia: suerte. Pedir señal más fuerte siempre resta. Nada corta las rachas de forma confiable; la protección real es colchón de saldo (~25 USDT). No se adopta.
+
+## horas.js (2026-10-17): estrategias que operan casi a diario (velas 1 h, rama "horas", ETH/BTC desde 2020)
+2304 combinaciones (retroceso con RSI 1h o rompimiento de N horas, a favor de la tendencia diaria vs promedio 45/30/60, meta 1-3%, stop 1-3%, salida 12-48 h, 2x, comisión 0.07%/lado). Ninguna positiva en los 6 años. Retroceso con RSI pierde casi siempre. La mejor que opera seguido: rompimiento de 48 h, N45, meta +3%, stop −1%, 48 h, largos y cortos: ~162 ops/año, 2020 +30%, 2021 +10%, 2022 −6%, 2023 +4%, 2024 +11%, 2025-hoy +12% (sobre el capital). Se puso como PRUEBA SIMULADA en el panel (rapida.js, ajustes rapidaPrueba). Pasar a real solo si gana en vivo y el usuario lo pide.
