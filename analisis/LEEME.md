@@ -243,3 +243,7 @@ Actual: +165.2 USDT, racha máx 11. "Pausa 20 días tras 4 pérdidas" = +166.2 y
 
 ## horas.js (2026-10-17): estrategias que operan casi a diario (velas 1 h, rama "horas", ETH/BTC desde 2020)
 2304 combinaciones (retroceso con RSI 1h o rompimiento de N horas, a favor de la tendencia diaria vs promedio 45/30/60, meta 1-3%, stop 1-3%, salida 12-48 h, 2x, comisión 0.07%/lado). Ninguna positiva en los 6 años. Retroceso con RSI pierde casi siempre. La mejor que opera seguido: rompimiento de 48 h, N45, meta +3%, stop −1%, 48 h, largos y cortos: ~162 ops/año, 2020 +30%, 2021 +10%, 2022 −6%, 2023 +4%, 2024 +11%, 2025-hoy +12% (sobre el capital). Se puso como PRUEBA SIMULADA en el panel (rapida.js, ajustes rapidaPrueba). Pasar a real solo si gana en vivo y el usuario lo pide.
+
+## scalping.js (2026-10-17): scalping 1m y 5m, 7 monedas, 12 meses
+Ruptura de N velas y reversión a la media (Bollinger k2/k3), N 20/60, objetivo/stop 0.2-1%, máx 60 velas. Costos por lado: futuros taker 0.06%, futuros maker 0.02% (optimista), spot 0.085% (solo largos). Mejor ajuste de la 1a mitad probado en la 2a mitad.
+Resultado: 0 de 36 ajustes ganan en la 2a mitad en NINGUNA moneda, temporalidad ni comisión (42 de 42 casos). Lo menos malo: BNB 5m maker −1.8% (621 ops). Las comisiones se comen la ventaja. No se adopta.
