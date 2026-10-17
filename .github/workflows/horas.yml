@@ -1,0 +1,31 @@
+# Baja velas de 1 hora de ETH y BTC (desde 2020) para probar estrategias que operan a diario. Guarda en la rama "horas".
+name: horas
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/horas.yml"]
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bajar velas
+        run: |
+          mkdir -p out
+          for S in ETHUSDT BTCUSDT; do
+            T=1577836800000; : > out/$S-1h.csv
+            for k in $(seq 1 70); do
+              curl -sfL "https://data-api.binance.vision/api/v3/klines?symbol=$S&interval=1h&limit=1000&startTime=$T" -o tmp.json || break
+              N=$(jq length tmp.json); [ "$N" = "0" ] && break
+              jq -r '.[] | [.[0], .[1], .[2], .[3], .[4]] | join(",")' tmp.json >> out/$S-1h.csv
+              T=$(( $(jq '.[-1][0]' tmp.json) + 3600000 )); [ "$N" -lt 1000 ] && break
+            done
+            echo "$S $(wc -l < out/$S-1h.csv)"
+          done
+      - name: Guardar en la rama horas
+        run: |
+          cd out
+          git init -q -b horas && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Velas 1h $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" horas
