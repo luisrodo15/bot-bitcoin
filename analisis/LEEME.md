@@ -236,3 +236,7 @@ Conclusión: en 2025-26 el funding paga poco (~2-3%/año del capital). Hoy no le
 ## dca.js (2026-10-17): DCA semanal 10 USDT en BTC y ETH, normal vs "inteligente" (comprar más con miedo<=25 o abajo de SMA200)
 BTC normal: 2018-hoy +396% sobre lo aportado (puso 4490, vale ~22.3k); 2021-22 −49%; 2025-hoy −5%. ETH normal +340%.
 Las versiones "inteligentes" ganan MENOS (BTC +359 a +379%): guardar USDT esperando caídas deja dinero sin comprar en las subidas. DCA normal es lo mejor; se hace gratis con Compra recurrente de Binance.
+
+## rachas2.js (2026-10-17, usuario: "no quiero que pierdas 11 veces seguido")
+Reglas para cortar rachas: pausa de D días tras K pérdidas seguidas (K 3-5, D 10-30), pedir señal más fuerte (+2/+4%) tras K pérdidas, o siempre (+1/+2/+3%).
+Actual: +165.2 USDT, racha máx 11. "Pausa 20 días tras 4 pérdidas" = +166.2 y racha 7, pero los vecinos (17/23/26 días) dan racha 10-16 y menos ganancia: suerte. Pedir señal más fuerte siempre resta. Nada corta las rachas de forma confiable; la protección real es colchón de saldo (~25 USDT). No se adopta.
