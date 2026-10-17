@@ -222,3 +222,7 @@ No se pudo leer exchangeInfo de Binance desde GitHub (bloqueo EUA): falta confir
 ## acc2.js (2026-10-17): estrategias propias de acciones (NVDA AAPL MSFT META GOOGL AMZN TSLA, QQQ)
 Rompimiento de máximos (1 año / 3 meses), fin de mes y SMA50>SMA200: todas pierden algún periodo.
 Rotación mensual a la acción más fuerte (subida de N días, arriba de su SMA200), una sola posición, 22 USDT, stop 4.3%: positiva en total con todos los N (42-189 días) y ambos stops (4.3%/8%); N=84 gana en los 5 periodos (+131 USDT). Mucho viene de TSLA 2019-21; sin TSLA ~+31 a +46 USDT en 8 años (~4-6/año). Mejor candidata para un segundo bot de acciones.
+
+## Revisión diaria 2026-10-17
+Datos al cierre del 16-oct (rama memes trae ETH/BTC al día; diarios iba al 14). vecprof2 (1.4x): SMA45 + cortos sigue positivo en los 5 periodos y mejor que solo largo en 4/5. ETH 2423.5 < SMA45 2566 y > SMA200 2146: sin señal, espera.
+asegura.js (idea nueva): asegurar ganancia moviendo el stop a "sin pérdida" tras +10/15/20/30%, o stop que sigue al precio a 10-25% del mejor precio. Con posición fija 22 USDT: actual +165.2 USDT; ninguna variante gana en todos los periodos y todas bajan el total (mejor: sin pérdida tras +30% = +163.1). La estrategia gana por pocas entradas grandes; cortarlas antes resta. No se adopta.
