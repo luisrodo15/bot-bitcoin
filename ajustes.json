@@ -19,6 +19,5 @@
   "caidaUSDT": 5,
   "acumularUSDT": true,
   "futuros": true,
-  "soloFuturos": true,
-  "rapidaPrueba": true
+  "soloFuturos": true
 }
