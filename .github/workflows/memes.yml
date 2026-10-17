@@ -13,7 +13,7 @@ jobs:
       - name: Bajar velas
         run: |
           mkdir -p out
-          for S in PEPEUSDT SHIBUSDT WIFUSDT BONKUSDT FLOKIUSDT DOGEUSDT TRXUSDT LINKUSDT AVAXUSDT LTCUSDT; do
+          for S in ETHUSDT BTCUSDT PEPEUSDT SHIBUSDT WIFUSDT BONKUSDT FLOKIUSDT DOGEUSDT TRXUSDT LINKUSDT AVAXUSDT LTCUSDT; do
             T=1500000000000; : > out/$S-1d.csv
             for k in 1 2 3 4 5; do
               curl -sfL "https://data-api.binance.vision/api/v3/klines?symbol=$S&interval=1d&limit=1000&startTime=$T" -o tmp.json || break
