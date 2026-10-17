@@ -1,0 +1,27 @@
+# Baja historial diario de acciones (Yahoo) y las reglas de los futuros de acciones de Binance. Guarda en la rama "acciones".
+name: acciones
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/acciones.yml"]
+permissions:
+  contents: write
+jobs:
+  bajar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bajar datos
+        run: |
+          mkdir -p out
+          for Y in TSLA NVDA AAPL MSFT META GOOGL AMZN QQQ SPY MSTR COIN; do curl -sfL -A "Mozilla/5.0" "https://query1.finance.yahoo.com/v8/finance/chart/$Y?period1=1420070400&period2=9999999999&interval=1d" -o out/yahoo-$Y.json || true; echo "$Y $(wc -c < out/yahoo-$Y.json 2>/dev/null)"; done
+          curl -sfL "https://fapi.binance.com/fapi/v1/exchangeInfo" -o info.json || true
+          jq -c '[.symbols[] | select(.status=="TRADING") | select(.symbol|test("^(TSLA|NVDA|AAPL|MSFT|META|GOOGL|AMZN|QQQ|SPY|MSTR|COIN|HOOD|CRCL)")) | {s:.symbol, tipo:.contractType, sub:.underlyingSubType, f:[.filters[]|select(.filterType=="MARKET_LOT_SIZE" or .filterType=="MIN_NOTIONAL")]}]' info.json > out/binance-acciones.json || echo '[]' > out/binance-acciones.json
+          cat out/binance-acciones.json | head -c 3000
+          curl -sfL "https://fapi.binance.com/fapi/v1/premiumIndex" | jq -c '[.[] | select(.symbol|test("^(TSLA|NVDA|AAPL|MSFT|META|GOOGL|AMZN|QQQ|SPY|MSTR|COIN)")) | {s:.symbol, p:.markPrice, f:.lastFundingRate}]' > out/binance-precios.json || true
+          cat out/binance-precios.json
+      - name: Guardar en la rama acciones
+        run: |
+          cd out
+          git init -q -b acciones && git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -qm "Datos acciones $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" acciones
