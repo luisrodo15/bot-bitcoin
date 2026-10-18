@@ -14,7 +14,7 @@ module.exports = () => `<!doctype html><html lang="es"><head><meta charset="utf-
 .big{font-size:32px;font-weight:700;letter-spacing:-.02em;margin:4px 0 2px;word-break:break-all}.big small{font-size:14px;color:var(--mut);font-weight:500}
 .eq{color:var(--mut);font-size:12.5px}
 .sw{display:inline-flex;background:#0a1430;border:1px solid var(--line);border-radius:99px;padding:2px}.sw button{background:none;border:0;color:var(--mut);font:inherit;font-size:12.5px;padding:4px 12px;border-radius:99px;cursor:pointer}.sw button.on{background:var(--gold);color:#070d1c;font-weight:700}
-.pg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.pg div{background:rgba(6,11,24,.4);border-radius:12px;padding:8px 9px;min-width:0}.pg span{display:block;color:var(--mut);font-size:11px}.pg b{display:block;font-size:15px;overflow-wrap:anywhere;line-height:1.3}.pg small{font-size:12px}
+.pg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.pg div{background:rgba(6,11,24,.4);border-radius:12px;padding:8px 9px;min-width:0}.pg span{display:block;color:var(--mut);font-size:11px}.pg b{display:block;font-size:15px;overflow-wrap:anywhere;line-height:1.3}.pg small{font-size:12px}.pg .fl{display:block;color:var(--mut);font-size:10.5px;line-height:1.35;margin-top:3px}
 .k{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:16px;padding:13px;margin-bottom:12px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .rg{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 4px}.rg button{background:#0f1a36;color:var(--mut);border:1px solid var(--line);border-radius:99px;padding:5px 13px;font:inherit;font-size:12.5px;cursor:pointer}.rg button.on{background:var(--gold);color:#070d1c;border-color:var(--gold);font-weight:700}
 svg{width:100%;height:auto;display:block;touch-action:pan-y}
@@ -50,7 +50,7 @@ const MES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","di
 const f2=(v,d)=>Math.abs(v).toLocaleString("es-MX",{minimumFractionDigits:d,maximumFractionDigits:d});
 function dinero(u,dU){if(u==null)return"—";if(cur==="MXN"&&D.rate)return"$"+f2(u*D.rate,2)+" MXN";return f2(u,dU??(Math.abs(u)<1?4:2))+" USDT"}
 function sg(u){return(u>=0?"+":"−")+dinero(Math.abs(u))}
-function cant(q){const a=Math.abs(q);return(q<0?"−":"")+(a>=1000?f2(a,2):a>=1?(+a.toFixed(6)).toLocaleString("es-MX",{maximumFractionDigits:6}):(+a.toFixed(8)).toString())}
+function cant(q){const a=Math.abs(q);return(q<0?"−":"")+(a>=1000?f2(a,2):a>=1?(+a.toFixed(6)).toLocaleString("es-MX",{maximumFractionDigits:6}):a.toFixed(8).replace(/0+$/,"").replace(/\.$/,""))}
 function fecha(t){const d=new Date(t);return d.getDate()+" "+MES[d.getMonth()]+" "+d.getFullYear()+" · "+d.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}
 function hace(t){const s=Math.round((Date.now()-t)/1000);return s<60?"hace "+Math.max(s,0)+" s":"hace "+Math.round(s/60)+" min"}
 function pinta(){if(!D)return;
@@ -59,10 +59,10 @@ function pinta(){if(!D)return;
   $("tot").innerHTML=cur==="MXN"&&D.rate?"$"+f2(tot*D.rate,2)+" <small>MXN</small>":f2(tot,8)+" <small>USDT</small>";
   $("eq").textContent=(cur==="MXN"?"≈ "+f2(tot,8)+" USDT":D.rate?"≈ $"+f2(tot*D.rate,2)+" MXN":"")+(D.rate?" · dólar a $"+f2(D.rate,2):"");
   for(const k of["hoy","mes","ano"]){const p=D.pnl&&D.pnl[k];const b=$("p-"+k),s=$("pp-"+k);if(!p){b.textContent="…";continue}
-    b.textContent=sg(p.v);b.className=p.v>=0?"up":"down";s.textContent=(p.pct>=0?"+":"−")+Math.abs(p.pct).toFixed(2)+"%";s.className=p.v>=0?"up":"down"}
+    b.textContent=sg(p.v);b.className=p.v>=0?"up":"down";s.innerHTML='<span class="'+(p.v>=0?"up":"down")+'">'+(p.pct>=0?"+":"−")+Math.abs(p.pct).toFixed(2)+"%</span>"+(k!=="hoy"||p.entro||p.salio?'<span class="fl">entró '+dinero(p.entro||0)+"<br>salió "+dinero(p.salio||0)+"</span>":"")+(p.falta&&p.falta.length?'<span class="fl gold">aún sin leer: '+p.falta.join(", ")+"</span>":"")}
   grafica();
-  const ms=D.monedas||[];$("mon").innerHTML=ms.length?ms.map(x=>{const w=x.by?Object.entries(x.by).filter(([,q])=>Math.abs(q)>1e-12).map(([n,q])=>n+" "+cant(q)).join(" · "):"";
-    return'<div class="row"><div class="a cr"><span class="coin">'+x.c.slice(0,4)+'</span><div><div class="t">'+x.c+'</div><div class="s">'+cant(x.q)+" "+x.c+(w&&Object.keys(x.by).length>1?" · "+w:x.by?" · "+Object.keys(x.by)[0]:"")+'</div></div></div><div class="b"><div class="t">'+dinero(x.v)+'</div><div class="s">'+(x.p!=null&&x.c!=="USDT"?(cur==="MXN"&&D.rate?"$"+f2(x.p*D.rate,x.p*D.rate<1?6:2):f2(x.p,x.p<1?6:2))+" ":"")+(x.ch!=null?'<span class="'+(x.ch>=0?"up":"down")+'">'+(x.ch>=0?"+":"−")+Math.abs(x.ch).toFixed(2)+"%</span>":"")+"</div></div></div>"}).join(""):'<div class="n">Sin saldo</div>';
+  const ms0=D.monedas||[],ms=ms0.filter(x=>x.v==null||x.v>=0.005),chicas=ms0.length-ms.length;$("mon").innerHTML=ms.length?ms.map(x=>{const w=x.by?Object.entries(x.by).filter(([,q])=>Math.abs(q)>1e-12).map(([n,q])=>n+" "+cant(q)).join(" · "):"";
+    return'<div class="row"><div class="a cr"><span class="coin">'+x.c.slice(0,4)+'</span><div><div class="t">'+x.c+'</div><div class="s">'+cant(x.q)+" "+x.c+(w&&Object.keys(x.by).length>1?" · "+w:x.by?" · "+Object.keys(x.by)[0]:"")+'</div></div></div><div class="b"><div class="t">'+dinero(x.v)+'</div><div class="s">'+(x.p!=null&&x.c!=="USDT"?(cur==="MXN"&&D.rate?"$"+f2(x.p*D.rate,x.p*D.rate<1?6:2):f2(x.p,x.p<1?6:2))+" ":"")+(x.ch!=null?'<span class="'+(x.ch>=0?"up":"down")+'">'+(x.ch>=0?"+":"−")+Math.abs(x.ch).toFixed(2)+"%</span>":"")+"</div></div></div>"}).join(""):'<div class="n">Sin saldo</div>';if(chicas)$("mon").innerHTML+='<div class="n" style="margin-top:6px">y '+chicas+" moneda"+(chicas>1?"s":"")+" con saldo casi cero</div>";
   $("pos").innerHTML=(D.pos||[]).length?'<div class="k"><div class="l">Posiciones abiertas en Futuros</div>'+D.pos.map(p=>'<div class="row"><div class="a"><div class="t">'+p.s+" · "+(p.q>0?"Largo":"Corto")+" "+p.apal+'x</div><div class="s">'+cant(Math.abs(p.q))+" · entrada "+f2(p.entrada,2)+" · ahora "+f2(p.marca,2)+'</div></div><div class="b '+(p.pnl>=0?"up":"down")+'">'+sg(p.pnl)+'<div class="s">sin cerrar</div></div></div>').join("")+"</div>":"";
   $("wal").innerHTML=(D.wallets||[]).map(w=>'<div class="row"><div class="a">'+w.n+'</div><div class="b">'+dinero(w.v)+"</div></div>").join("")||'<div class="n">…</div>';
   movs();

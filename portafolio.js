@@ -9,6 +9,8 @@ const fs = require("fs"), path = require("path");
 const DAY = 864e5, M5 = 300e3;
 const QUOTES = ["USDT", "USDC", "FDUSD", "MXN", "BTC", "BNB", "ETH"], SIEMPRE = ["BTC", "ETH", "BNB", "SOL", "USDC", "FDUSD"];
 const DESDE = Date.UTC(2024, 0, 1); // desde cuándo se buscan movimientos
+const DESDE_FIAT = Date.UTC(2025, 0, 1); // pesos: Binance deja ~2 consultas por minuto, por eso desde 2025
+const FLUJOS = { dep: "depósitos cripto", ret: "retiros cripto", fiat: "depósitos y retiros de pesos", p2p: "P2P", pay: "Binance Pay", conv: "Convertir" };
 const sleep = ms => new Promise(ok => setTimeout(ok, ms));
 const ventanas = (a, b, n) => { const w = []; for (let s = a; s < b; s += n) w.push([s, Math.min(s + n - 1, b)]); return w; };
 const num = (x, d = 8) => (+(+x).toFixed(d)).toString();
@@ -20,6 +22,7 @@ function crear({ dir, leerLlave, crearCliente, API, FAPI, WEB }) {
   const leer = (f, d) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return d; } };
   const guardar = (f, v) => { fs.writeFileSync(f + ".tmp", JSON.stringify(v)); fs.renameSync(f + ".tmp", f); };
   const S = Object.assign({ movs: {}, fills: {}, hecho: {}, cur: {} }, leer(F, {}));
+  if (S.v !== 2) { delete S.hecho.fiat; S.v = 2; } // v2: pesos se vuelven a leer por ventanas de 90 días
   const PX = leer(FP, {}); let pxNuevo = false;
   const L = { tk: {}, ch: {}, rate: 0, rateT: 0, q: {}, by: {}, wallets: [], total: null, pos: [], avisos: {}, res: null, series: {}, serieT: 0, t: 0 };
   let cli = null, fcli = null, listo = false;
@@ -123,9 +126,9 @@ function crear({ dir, leerLlave, crearCliente, API, FAPI, WEB }) {
       if (o.orderStatus === "COMPLETED") out.push({ id: "p" + o.orderNumber, t: o.createTime, cat: "cv", tx: `P2P ${side === "BUY" ? "compra" : "venta"} · ${num(o.totalPrice, 2)} ${o.fiat}`, legs: [[o.asset, (side === "BUY" ? 1 : -1) * o.amount]], k: "ext" });
   });
   fuente("fiat", 15 * 60e3, async (a, b, out) => {
-    for (const t of [0, 1]) for (const o of (await fiat("/sapi/v1/fiat/orders", { transactionType: t, beginTime: a, endTime: b, rows: 500 })).data || [])
+    for (const [s, e] of ventanas(Math.max(a, DESDE_FIAT), b, 90 * DAY)) for (const t of [0, 1]) for (const o of (await fiat("/sapi/v1/fiat/orders", { transactionType: t, beginTime: s, endTime: e, rows: 500 })).data || [])
       if (/success/i.test(o.status)) out.push({ id: "f" + o.orderNo, t: o.createTime, cat: t ? "ret" : "dep", tx: `${t ? "Retiro" : "Depósito"} de ${o.fiatCurrency}${o.method ? " · " + o.method : ""}${+o.totalFee ? ` · comisión ${num(o.totalFee, 2)}` : ""}`, legs: [[o.fiatCurrency, (t ? -1 : 1) * o.amount]], k: "ext" });
-    for (const t of [0, 1]) for (const o of (await fiat("/sapi/v1/fiat/payments", { transactionType: t, beginTime: a, endTime: b, rows: 500 })).data || []) {
+    for (const [s, e] of ventanas(Math.max(a, DESDE_FIAT), b, 90 * DAY)) for (const t of [0, 1]) for (const o of (await fiat("/sapi/v1/fiat/payments", { transactionType: t, beginTime: s, endTime: e, rows: 500 })).data || []) {
       if (!/complet|success/i.test(o.status)) continue;
       const saldo = /balance|wallet|cash|saldo/i.test(o.paymentMethod || ""), sg = t ? -1 : 1;
       out.push({ id: "c" + o.orderNo, t: o.createTime, cat: "cv", tx: `${t ? "Venta" : "Compra"} de ${o.cryptoCurrency} · ${num(o.sourceAmount, 2)} ${o.fiatCurrency}${o.paymentMethod ? " · " + o.paymentMethod : ""}`,
@@ -219,8 +222,8 @@ function crear({ dir, leerLlave, crearCliente, API, FAPI, WEB }) {
       const pm = await pEn(c, m.t, false); if (pm == null) { sin.add(c); continue; }
       p -= d * (pm - po); if (m.k === "ext") { if (d > 0) inn += d * pm; else out -= d * pm; }
     }
-    const base = vNow - p + out;
-    return { v: p, pct: base > 0 ? p / base * 100 : 0, desde: ini, entro: inn, salio: out, sin: [...sin] };
+    const base = vNow - p + out, falta = Object.keys(FLUJOS).filter(k => !S.hecho[k] || L.avisos[k]).map(k => FLUJOS[k]);
+    return { v: p, pct: base > 0 ? p / base * 100 : 0, desde: ini, entro: inn, salio: out, sin: [...sin], falta };
   }
   // Valor de la cuenta en el tiempo: cantidad que tenías en cada momento × precio de ese momento.
   async function serie(ini, iv, ms) {
