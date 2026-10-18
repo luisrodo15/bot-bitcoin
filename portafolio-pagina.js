@@ -36,7 +36,7 @@ a{color:var(--gold)}
 <div class="big" id="tot">…</div><div class="eq" id="eq"></div>
 <div class="pg"><div><span>PnL de hoy</span><b id="p-hoy">…</b><small id="pp-hoy"></small></div><div><span>PnL del mes</span><b id="p-mes">…</b><small id="pp-mes"></small></div><div><span>PnL del año</span><b id="p-ano">…</b><small id="pp-ano"></small></div></div></div>
 <div class="k"><div class="l" id="gt">Valor de tu cuenta</div><div class="rg" id="rg"><button data-r="hoy">Hoy</button><button data-r="mes">Mes</button><button data-r="ano">Año</button></div><div id="gf"></div></div>
-<div class="k"><div class="l">Calculadora Binance Card</div><div class="n" style="margin:4px 0 8px">Escribe lo que vas a pagar y te digo cuántos pesos convertir a USDC.</div>
+<div class="k"><div class="l">Calculadora Binance Card</div><div class="n" style="margin:4px 0 8px">Escribe cuánto vas a comprar y te digo el total que ocupas.</div>
 <div style="display:flex;gap:8px;align-items:center"><span class="t">$</span><input id="cm" type="number" inputmode="decimal" min="0" step="any" value="100" style="flex:1;min-width:0;background:#0a1430;border:1px solid var(--line);border-radius:10px;color:var(--txt);font:inherit;font-size:18px;padding:8px 10px"><span class="n">MXN</span></div>
 <div id="cr" style="margin-top:10px"></div></div>
 <div class="k"><div class="l">Tus monedas</div><div id="mon"></div></div>
@@ -103,7 +103,7 @@ async function carga(){try{const r=await fetch("portafolio.json"+Q,{cache:"no-st
 // Pago de 100 MXN con la tarjeta -> 5.55555 USDC (1 USD = 18.01801802 MXN, 1 USDC = 0.99900099 USD).
 const R0=18.49,CONV=18.61218459/R0,CARD=18.01801802*0.99900099/R0;
 function calc(){const m=+$("cm").value||0,r=(D&&D.rate)||R0,usdc=m/(r*CARD),mxn=usdc*r*CONV,ex=mxn-m;try{localStorage.setItem("pcm",$("cm").value)}catch(e){}
-  $("cr").innerHTML=m>0?'<div class="row"><div class="a">La tarjeta te cobra</div><div class="b t">'+usdc.toFixed(6)+' USDC</div></div><div class="row"><div class="a">Pesos a convertir a USDC</div><div class="b t gold">$'+f2(mxn,2)+' MXN</div></div><div class="row"><div class="a">Extra aparte de tus $'+f2(m,2)+'<div class="s">tipo de cambio de la tarjeta y de Convertir</div></div><div class="b t down">+$'+f2(ex,2)+' ('+(ex/m*100).toFixed(2)+'%)</div></div><div class="n">Para ir seguro convierte $'+f2(Math.ceil(mxn),0)+' MXN. Calculado con el dólar de ahora ($'+f2(r,2)+'). Binance cobra el USDC de tu Earn Flexible.</div>':""}
+  $("cr").innerHTML=m>0?'<div class="row"><div class="a">Compra</div><div class="b t">$'+f2(m,2)+' MXN</div></div><div class="row"><div class="a">Total que ocupas<div class="s">ya con la conversión y la comisión de la tarjeta</div></div><div class="b t gold" style="font-size:20px">$'+f2(mxn,2)+' MXN</div></div><div class="n">Pagas $'+f2(ex,2)+' de más ('+(ex/m*100).toFixed(2)+'%) · son '+usdc.toFixed(6)+' USDC · dólar de ahora $'+f2(r,2)+'</div>':""}
 try{const v=localStorage.getItem("pcm");if(v)$("cm").value=v}catch(e){}
 $("cm").addEventListener("input",calc);calc();
 carga();setInterval(carga,10000);setInterval(()=>{if(D&&D.t)$("sub").textContent="Binance · todas tus billeteras · actualizado "+hace(D.t)+(D.listo?"":" · leyendo tu historial…")},1000);
