@@ -689,6 +689,10 @@ ${SENT ? graficaVivo() + graficaDias() : ""}
 <p class="n">Ganancia hecha: <span class="${st.ganado >= 0 ? "up" : "down"}">${signo(st.ganado)} USDT</span> en ${st.trades.filter(t => t.ganancia != null).length} ventas.</p>
 </div></body></html>`;
 }
+// Portafolio en vivo (página principal): saldos, PnL y movimientos de tu cuenta, solo lectura. Ver portafolio.js.
+const Port = AJ.portafolio === false ? null : require("./portafolio.js").crear({ dir: DIR, leerLlave: Real.leerLlave, crearCliente: Real.crearCliente, API,
+  FAPI: process.env.API_FUTUROS || "https://fapi.binance.com", WEB: process.env.WEB_BINANCE || "https://www.binance.com" });
+const paginaPort = require("./portafolio-pagina.js");
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   // Panel de solo lectura: sin la clave no muestra nada. No acepta acciones ni claves de Binance.
@@ -696,6 +700,8 @@ http.createServer((req, res) => {
   if (req.method !== "GET" || dada.length !== buena.length || !crypto.timingSafeEqual(dada, buena)) { res.writeHead(403, { "content-type": "text/plain; charset=utf-8" }); return res.end("Falta la clave: abre la dirección con ?clave=TU_CLAVE"); }
   if (u.pathname === "/vivo.json") { vivo(u.searchParams.get("r")).then(d => { res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify(d)); })
     .catch(e => { res.writeHead(502, { "content-type": "application/json" }); res.end(JSON.stringify({ error: String(e.message || e) })); }); return; }
+  if (Port && u.pathname === "/portafolio.json") { res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" }); return res.end(JSON.stringify(Port.datos())); }
+  if (Port && u.pathname === "/") { res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }); return res.end(paginaPort()); }
   if (u.pathname === "/registro.csv") { res.writeHead(200, { "content-type": "text/csv; charset=utf-8" }); return res.end(fs.existsSync(F_CSV) ? fs.readFileSync(F_CSV) : ""); }
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(pagina());
 }).listen(cfg.puerto, () => console.log(`Bot Cripto en ${REAL ? "DINERO REAL" : "simulación"}. Panel: http://IP-DEL-SERVIDOR:${cfg.puerto}/?clave=${cfg.clavePanel}`));
