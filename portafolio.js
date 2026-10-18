@@ -10,7 +10,7 @@ const DAY = 864e5, M5 = 300e3;
 const QUOTES = ["USDT", "USDC", "FDUSD", "MXN", "BTC", "BNB", "ETH"], SIEMPRE = ["BTC", "ETH", "BNB", "SOL", "USDC", "FDUSD"];
 const DESDE = Date.UTC(2024, 0, 1); // desde cuándo se buscan movimientos
 const DESDE_FIAT = Date.UTC(2025, 0, 1); // pesos: Binance deja ~2 consultas por minuto, por eso desde 2025
-const FLUJOS = { dep: "depósitos cripto", ret: "retiros cripto", fiat: "depósitos y retiros de pesos", p2p: "P2P", pay: "Binance Pay", conv: "Convertir" };
+const FLUJOS = { dep: "depósitos cripto", ret: "retiros cripto", fiat: "depósitos y retiros de pesos", p2p: "P2P", conv: "Convertir" };
 const sleep = ms => new Promise(ok => setTimeout(ok, ms));
 const ventanas = (a, b, n) => { const w = []; for (let s = a; s < b; s += n) w.push([s, Math.min(s + n - 1, b)]); return w; };
 const num = (x, d = 8) => (+(+x).toFixed(d)).toString();
@@ -116,10 +116,6 @@ function crear({ dir, leerLlave, crearCliente, API, FAPI, WEB }) {
   fuente("conv", 60e3, async (a, b, out) => {
     for (const [s, e] of ventanas(a, b, 30 * DAY)) for (const o of (await g("/sapi/v1/convert/tradeFlow", { startTime: s, endTime: e, limit: 1000 })).list || [])
       if (o.orderStatus === "SUCCESS") out.push({ id: "v" + o.orderId, t: o.createTime, cat: "cv", tx: `Convertir ${num(o.fromAmount)} ${o.fromAsset} → ${num(o.toAmount)} ${o.toAsset}`, legs: [[o.fromAsset, -o.fromAmount], [o.toAsset, +o.toAmount]], k: "int" });
-  });
-  fuente("pay", 120e3, async (a, b, out) => {
-    for (const [s, e] of ventanas(a, b, 90 * DAY)) for (const o of (await g("/sapi/v1/pay/transactions", { startTime: s, endTime: e, limit: 100 })).data || [])
-      if (+o.amount) out.push({ id: "y" + o.transactionId, t: o.transactionTime, cat: +o.amount > 0 ? "dep" : "ret", tx: `Binance Pay ${+o.amount > 0 ? "recibido" : "enviado"}`, legs: [[o.currency, +o.amount]], k: "ext" });
   });
   fuente("p2p", 15 * 60e3, async (a, b, out) => {
     for (const side of ["BUY", "SELL"]) for (const [s, e] of ventanas(a, b, 30 * DAY)) for (const o of (await g("/sapi/v1/c2c/orderMatch/listUserOrderHistory", { tradeType: side, startTimestamp: s, endTimestamp: e, rows: 100 })).data || [])
@@ -270,7 +266,7 @@ function crear({ dir, leerLlave, crearCliente, API, FAPI, WEB }) {
     const vs = Object.entries(L.q).map(([c, q]) => { const p = pAhora(c), s = sim(c); return { c, q, p, v: p == null ? null : q * p, ch: s && L.ch[s.s] != null ? (s.inv ? -L.ch[s.s] : L.ch[s.s]) : null, by: L.by[c] }; })
       .filter(x => Math.abs(x.q) > 1e-12).sort((a, b) => (b.v || 0) - (a.v || 0));
     const movs = Object.values(S.movs).sort((a, b) => b.t - a.t).map(({ id, t, cat, tx, legs, usd, k }) => ({ id, t, cat, tx, legs, usd, k }));
-    const avisos = Object.entries(L.avisos).map(([k, v]) => `${{ dep: "Depósitos", ret: "Retiros", conv: "Convertir", pay: "Binance Pay", p2p: "P2P", fiat: "Pesos (depósitos/retiros/compras con tarjeta)", div: "Recompensas", polvo: "Saldos pequeños", tr: "Transferencias entre billeteras", fing: "Futuros (ganancias y comisiones)", ftrades: "Futuros (operaciones)", spot: "Compras/ventas Spot", earn: "Earn", fondos: "Billetera Fondos", futuros: "Billetera Futuros", total: "Valor total" }[k] || k}: ${v}`);
+    const avisos = Object.entries(L.avisos).map(([k, v]) => `${{ dep: "Depósitos", ret: "Retiros", conv: "Convertir", p2p: "P2P", fiat: "Pesos (depósitos/retiros/compras con tarjeta)", div: "Recompensas", polvo: "Saldos pequeños", tr: "Transferencias entre billeteras", fing: "Futuros (ganancias y comisiones)", ftrades: "Futuros (operaciones)", spot: "Compras/ventas Spot", earn: "Earn", fondos: "Billetera Fondos", futuros: "Billetera Futuros", total: "Valor total" }[k] || k}: ${v}`);
     return { t: L.t, error: L.error, rate: L.rate, rateDe: L.rateDe, total: L.total, wallets: L.wallets, monedas: vs, pos: L.pos, pnl: L.res, series: L.series, movs, avisos, listo };
   }
 
