@@ -102,8 +102,8 @@ async function carga(){try{const r=await fetch("portafolio.json"+Q,{cache:"no-st
 // Convertir 110 MXN -> 5.91010687 USDC (18.61218459 MXN por USDC, sin comisión).
 // Pago de 100 MXN con la tarjeta -> 5.55555 USDC (1 USD = 18.01801802 MXN, 1 USDC = 0.99900099 USD).
 const R0=18.49,CONV=18.61218459/R0,CARD=18.01801802*0.99900099/R0;
-function calc(){const m=+$("cm").value||0,r=(D&&D.rate)||R0,usdc=m/(r*CARD),mxn=usdc*r*CONV,ex=mxn-m;try{localStorage.setItem("pcm",$("cm").value)}catch(e){}
-  $("cr").innerHTML=m>0?'<div class="row"><div class="a">Compra</div><div class="b t">$'+f2(m,2)+' MXN</div></div><div class="row"><div class="a">Total que ocupas<div class="s">ya con la conversión y la comisión de la tarjeta</div></div><div class="b t gold" style="font-size:20px">$'+f2(mxn,2)+' MXN</div></div><div class="n">Pagas $'+f2(ex,2)+' de más ('+(ex/m*100).toFixed(2)+'%) · son '+usdc.toFixed(6)+' USDC · dólar de ahora $'+f2(r,2)+'</div>':""}
+function calc(){const m=+$("cm").value||0,r=(D&&D.rate)||R0,pu=(D&&D.usdcMxn)||r*CONV,usdc=m/(r*CARD),mxn=usdc*pu,ex=mxn-m;try{localStorage.setItem("pcm",$("cm").value)}catch(e){}
+  $("cr").innerHTML=m>0?'<div class="row"><div class="a">Compra</div><div class="b t">$'+f2(m,2)+' MXN</div></div><div class="row"><div class="a">Total que ocupas<div class="s">ya con la conversión y la comisión de la tarjeta</div></div><div class="b t gold" style="font-size:20px">$'+f2(mxn,2)+' MXN</div></div><div class="n">Pagas $'+f2(ex,2)+' de más ('+(ex/m*100).toFixed(2)+'%) · son '+usdc.toFixed(6)+' USDC · USDC hoy a $'+f2(pu,4)+(D&&D.usdcDe==="Convertir"?" en Convertir (en vivo)":D&&D.usdcDe?" (mercado)":"")+'</div>':""}
 try{const v=localStorage.getItem("pcm");if(v)$("cm").value=v}catch(e){}
 $("cm").addEventListener("input",calc);calc();
 carga();setInterval(carga,10000);setInterval(()=>{if(D&&D.t)$("sub").textContent="Binance · todas tus billeteras · actualizado "+hace(D.t)+(D.listo?"":" · leyendo tu historial…")},1000);

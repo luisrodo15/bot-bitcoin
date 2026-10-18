@@ -262,12 +262,21 @@ function crear({ dir, leerLlave, crearCliente, API, FAPI, WEB }) {
   let movOcupado = false;
   async function cicloMov() { if (movOcupado || !cli || !Object.keys(L.tk).length) return; movOcupado = true; try { await movimientos(); } catch (e) { console.error("Portafolio movimientos:", e.message); } finally { movOcupado = false; } }
 
+  // Precio del USDC en pesos en vivo, como en Convertir: cotización de 1,000 MXN -> USDC (solo pide precio, no la acepta: no compra nada).
+  let cotT = 0;
+  async function cotizar() {
+    if (!cli || Date.now() - cotT < 60e3) return; cotT = Date.now();
+    try { const q = await cli.llamar("POST", "/sapi/v1/convert/getQuote", { fromAsset: "MXN", toAsset: "USDC", fromAmount: "1000", walletType: "SPOT" });
+      if (+q.toAmount > 0) { L.usdcMxn = 1000 / +q.toAmount; L.usdcDe = "Convertir"; L.usdcT = Date.now(); return; } } catch (e) {}
+    if (L.tk.USDTMXN && L.tk.USDCUSDT) { L.usdcMxn = L.tk.USDTMXN * L.tk.USDCUSDT; L.usdcDe = "mercado"; L.usdcT = Date.now(); }
+  }
   function datos() {
+    cotizar();
     const vs = Object.entries(L.q).map(([c, q]) => { const p = pAhora(c), s = sim(c); return { c, q, p, v: p == null ? null : q * p, ch: s && L.ch[s.s] != null ? (s.inv ? -L.ch[s.s] : L.ch[s.s]) : null, by: L.by[c] }; })
       .filter(x => Math.abs(x.q) > 1e-12).sort((a, b) => (b.v || 0) - (a.v || 0));
     const movs = Object.values(S.movs).sort((a, b) => b.t - a.t).map(({ id, t, cat, tx, legs, usd, k }) => ({ id, t, cat, tx, legs, usd, k }));
     const avisos = Object.entries(L.avisos).map(([k, v]) => `${{ dep: "Depósitos", ret: "Retiros", conv: "Convertir", p2p: "P2P", fiat: "Pesos (depósitos/retiros/compras con tarjeta)", div: "Recompensas", polvo: "Saldos pequeños", tr: "Transferencias entre billeteras", fing: "Futuros (ganancias y comisiones)", ftrades: "Futuros (operaciones)", spot: "Compras/ventas Spot", earn: "Earn", fondos: "Billetera Fondos", futuros: "Billetera Futuros", total: "Valor total" }[k] || k}: ${v}`);
-    return { t: L.t, error: L.error, rate: L.rate, rateDe: L.rateDe, total: L.total, wallets: L.wallets, monedas: vs, pos: L.pos, pnl: L.res, series: L.series, movs, avisos, listo };
+    return { t: L.t, error: L.error, usdcMxn: L.usdcMxn, usdcDe: L.usdcDe, rate: L.rate, rateDe: L.rateDe, total: L.total, wallets: L.wallets, monedas: vs, pos: L.pos, pnl: L.res, series: L.series, movs, avisos, listo };
   }
 
   ciclo(); setInterval(ciclo, +process.env.PORT_MS || 20000);
