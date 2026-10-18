@@ -210,16 +210,16 @@ function crear({ dir, leerLlave, crearCliente, API, FAPI, WEB }) {
   async function pnl(ini) {
     const movs = Object.values(S.movs).filter(m => m.t >= ini && m.k !== "tr");
     const o = {}, open = async c => (c in o ? o[c] : (o[c] = await pEn(c, ini, true))), sin = new Set();
-    let vNow = 0, p = 0, inn = 0, out = 0;
-    for (const [c, q] of Object.entries(L.q)) { const pn = pAhora(c), po = await open(c); if (pn == null || po == null) { if (q > 0) sin.add(c); continue; } vNow += q * pn; p += q * (pn - po); }
+    let vNow = 0, p = 0, inn = 0, out = 0, nsin = 0; const det = {}, D = c => det[c] || (det[c] = { precio: 0, mov: 0, ing: 0, n: 0, o: null });
+    for (const [c, q] of Object.entries(L.q)) { const pn = pAhora(c), po = await open(c); if (pn == null || po == null) { if (q > 0) sin.add(c); continue; } vNow += q * pn; p += q * (pn - po); D(c).precio += q * (pn - po); D(c).o = po; }
     for (const m of movs) for (const [c, d] of m.legs) {
-      const po = await open(c); if (po == null) { sin.add(c); continue; }
-      if (m.k === "ing") { p += d * po; continue; }
-      const pm = await pEn(c, m.t, false); if (pm == null) { sin.add(c); continue; }
-      p -= d * (pm - po); if (m.k === "ext") { if (d > 0) inn += d * pm; else out -= d * pm; }
+      const po = await open(c); if (po == null) { sin.add(c); nsin++; continue; }
+      if (m.k === "ing") { p += d * po; D(c).ing += d * po; continue; }
+      const pm = await pEn(c, m.t, false); if (pm == null) { sin.add(c); nsin++; continue; }
+      p -= d * (pm - po); D(c).mov -= d * (pm - po); D(c).n++; D(c).o = po; if (m.k === "ext") { if (d > 0) inn += d * pm; else out -= d * pm; }
     }
     const base = vNow - p + out, falta = Object.keys(FLUJOS).filter(k => !S.hecho[k] || L.avisos[k]).map(k => FLUJOS[k]);
-    return { v: p, pct: base > 0 ? p / base * 100 : 0, desde: ini, entro: inn, salio: out, sin: [...sin], falta };
+    return { v: p, pct: base > 0 ? p / base * 100 : 0, desde: ini, entro: inn, salio: out, sin: [...sin], nsin, falta, det };
   }
   // Valor de la cuenta en el tiempo: cantidad que tenías en cada momento × precio de ese momento.
   async function serie(ini, iv, ms) {
