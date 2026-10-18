@@ -22,7 +22,9 @@ function crear({ dir, leerLlave, crearCliente, API, FAPI, WEB }) {
   const leer = (f, d) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return d; } };
   const guardar = (f, v) => { fs.writeFileSync(f + ".tmp", JSON.stringify(v)); fs.renameSync(f + ".tmp", f); };
   const S = Object.assign({ movs: {}, fills: {}, hecho: {}, cur: {} }, leer(F, {}));
-  if (S.v !== 2) { delete S.hecho.fiat; S.v = 2; } // v2: pesos se vuelven a leer por ventanas de 90 días
+  if ((S.v || 0) < 2) delete S.hecho.fiat; // v2: pesos se vuelven a leer por ventanas de 90 días
+  if ((S.v || 0) < 3) { delete S.hecho.polvo; for (const id in S.movs) if (id.startsWith("z")) delete S.movs[id]; } // v3: saldos pequeños con la moneda correcta
+  S.v = 3;
   const PX = leer(FP, {}); let pxNuevo = false;
   const L = { tk: {}, ch: {}, rate: 0, rateT: 0, q: {}, by: {}, wallets: [], total: null, pos: [], avisos: {}, res: null, series: {}, serieT: 0, t: 0 };
   let cli = null, fcli = null, listo = false;
@@ -136,8 +138,15 @@ function crear({ dir, leerLlave, crearCliente, API, FAPI, WEB }) {
       out.push({ id: "r" + o.id, t: o.divTime, cat: "otro", tx: `Recompensa · ${o.enInfo || "Binance"}`, legs: [[o.asset, +o.amount]], k: "ing" });
   });
   fuente("polvo", 15 * 60e3, async (a, b, out) => {
-    for (const o of (await g("/sapi/v1/asset/dribblet", { startTime: Math.max(a, Date.now() - 99 * DAY), endTime: b })).userAssetDribblets || [])
-      out.push({ id: "z" + o.transId, t: o.operateTime, cat: "cv", tx: "Convertir saldos pequeños a BNB", legs: [...(o.userAssetDribbletDetails || []).map(x => [x.fromAsset, -x.amount]), ["BNB", +o.totalTransferedAmount]], k: "int" });
+    for (const o of (await g("/sapi/v1/asset/dribblet", { startTime: Math.max(a, Date.now() - 99 * DAY), endTime: b })).userAssetDribblets || []) {
+      const de = (o.userAssetDribbletDetails || []).map(x => [x.fromAsset, -x.amount]), tot = +o.totalTransferedAmount;
+      // Binance no dice a qué moneda se convirtió (antes siempre BNB; ahora también puede ser USDC u otra):
+      // se elige la moneda con la que el valor recibido se parece más al valor de lo convertido.
+      let a2 = o.toAsset || o.targetAsset || null;
+      if (!a2) { let v = 0, ok = true; for (const [c, d] of de) { const p = await pEn(c, o.operateTime, false); if (p == null) ok = false; else v -= d * p; }
+        a2 = "BNB"; if (ok && v > 0) { let mejor = Infinity; for (const c of ["BNB", "USDC", "USDT", "FDUSD"]) { const p = await pEn(c, o.operateTime, false); if (p == null) continue; const err = Math.abs(Math.log(tot * p / v)); if (err < mejor) { mejor = err; a2 = c; } } } }
+      out.push({ id: "z" + o.transId, t: o.operateTime, cat: "cv", tx: `Convertir saldos pequeños a ${a2}`, legs: [...de, [a2, tot]], k: "int" });
+    }
   });
   fuente("tr", 120e3, async (a, b, out) => {
     for (const ty of Object.keys(NOMBRE_TR)) for (const [s, e] of ventanas(a, b, 30 * DAY)) for (const o of (await g("/sapi/v1/asset/transfer", { type: ty, startTime: s, endTime: e, size: 100 })).rows || [])
